@@ -1,3 +1,19 @@
+# My env
+
+### pahts
+
+- examples: `gym-gazebo/examples`
+- environments: `gym-gazebo/gym-gazebo/envs`
+- worlds: `gym-gazebo/gym-gazebo/envs/assets/worlds`
+- robots: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot/turtlebot_description/robots`
+- bash setups: `gym-gazebo/gym-gazebo/envs/installation`
+- launch files: `gym-gazebo/gym-gazebo/envs/assets/launch`
+- catkin workspace: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src`
+
+- urdf launch: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
+- world launch: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
+
+
 <img src="data/logo.jpg" width=25% align="right" /> [![Build status](https://travis-ci.org/erlerobot/gym-gazebo.svg?branch=master)](https://travis-ci.org/erlerobot/gym-gazebo)
 
 
