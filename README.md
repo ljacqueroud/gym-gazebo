@@ -1,6 +1,6 @@
 # My env
 
-### pahts
+### Useful Paths
 
 - examples: `gym-gazebo/examples`
 - environments: `gym-gazebo/gym-gazebo/envs`
@@ -9,6 +9,7 @@
 - bash setups: `gym-gazebo/gym-gazebo/envs/installation`
 - launch files: `gym-gazebo/gym-gazebo/envs/assets/launch`
 - catkin workspace: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src`
+
 
 - urdf launch: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
 - world launch: `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
