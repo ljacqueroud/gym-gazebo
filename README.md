@@ -1,6 +1,6 @@
 # My env
 
-### Useful Paths
+### 1. Useful Paths
 
 - examples:\
   `gym-gazebo/examples`
@@ -23,7 +23,7 @@
 - world launch:\
   `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
   
-### Build packages
+### 2. Build packages
 `cd gym-gazebo/gym-gazebo/envs/installation`\
 next command: **stop when it starts building packages**\
 `bash setup_melodic.bash`\
@@ -33,12 +33,26 @@ remove useless(?) package (it causes errors with opencv)\
 build with catkin\
 `catkin_make`
 
-### Helpful modifications
+###  3. Helpful modifications
+
+##### 3.1 GUI
 
 Open GUI automatically when launching:\
 in launch file `gym-gazebo/gym-gazebo/envs/assets/launch`
 set `<arg name="gui" default="true">`
 
+##### 3.2 Change world
+
+World file in `gym-gazebo/gym-gazebo/envs/assets/worlds`\
+In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
+`<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`
+In world file, link to corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
+
+___
+
+___
+
+___
 
 <img src="data/logo.jpg" width=25% align="right" /> [![Build status](https://travis-ci.org/erlerobot/gym-gazebo.svg?branch=master)](https://travis-ci.org/erlerobot/gym-gazebo)
 
