@@ -33,6 +33,12 @@ remove useless(?) package (it causes errors with opencv)\
 build with catkin\
 `catkin_make`
 
+### Helpful modifications
+
+Open GUI automatically when launching:\
+in launch file `gym-gazebo/gym-gazebo/envs/assets/launch`
+set `<arg name="gui" default="true">`
+
 
 <img src="data/logo.jpg" width=25% align="right" /> [![Build status](https://travis-ci.org/erlerobot/gym-gazebo.svg?branch=master)](https://travis-ci.org/erlerobot/gym-gazebo)
 
