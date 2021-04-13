@@ -27,10 +27,10 @@
 `cd gym-gazebo/gym-gazebo/envs/installation`\
 next command: **stop when it starts building packages**\
 `bash setup_melodic.bash`\
-remove useless package (it causes errors with opencv)\
+remove useless(?) package (it causes errors with opencv)\
 `cd catkin_ws`\
 `rm -r src/ar_track_alvar`\
-build with catkin
+build with catkin\
 `catkin_make`
 
 
