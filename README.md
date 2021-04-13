@@ -22,6 +22,16 @@
   `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
 - world launch:\
   `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
+  
+### Build packages
+`cd gym-gazebo/gym-gazebo/envs/installation`\
+next command: **stop when it starts building packages**\
+`bash setup_melodic.bash`\
+remove useless package (it causes errors with opencv)\
+`cd catkin_ws`\
+`rm -r src/ar_track_alvar`\
+build with catkin
+`catkin_make`
 
 
 <img src="data/logo.jpg" width=25% align="right" /> [![Build status](https://travis-ci.org/erlerobot/gym-gazebo.svg?branch=master)](https://travis-ci.org/erlerobot/gym-gazebo)
