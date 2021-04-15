@@ -8,20 +8,18 @@
   `gym-gazebo/gym-gazebo/envs`
 - worlds:\
   `gym-gazebo/gym-gazebo/envs/assets/worlds`
-- robots:\
-  `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot/turtlebot_description/robots`
+- robots (turtlebot):\
+  `catkin_ws/src/turtlebot/turtlebot_description/robots`
 - bash setups:\
   `gym-gazebo/gym-gazebo/envs/installation`
 - launch files:\
   `gym-gazebo/gym-gazebo/envs/assets/launch`
-- catkin workspace:\
-  `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src`
 
 
 - urdf launch:\
-  `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
+  `catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
 - world launch:\
-  `gym-gazebo/gym-gazebo/envs/installation/catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
+  `catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
   
 ### 2. Build packages
 `cd gym-gazebo/gym-gazebo/envs/installation`\
@@ -41,11 +39,19 @@ Open GUI automatically when launching:\
 in launch file `gym-gazebo/gym-gazebo/envs/assets/launch`
 set `<arg name="gui" default="true">`
 
-##### 3.2 Change world
+##### 3.2 Create new gym environment
+
+- in main script: call `env = gym.make('MyNewEnvironment-v0')`
+- in environment definition (`gym-gazebo/gym-gazebo/envs`): create new environment
+- in `gym-gazebo/gym-gazebo/__init__.py` register new environment with id (name) and entry point (env class defined in last point)
+- in launch files definition (`gym-gazebo/gym-gazebo/envs/assets/launch`): create new launch file
+
+
+##### 3.3 Change world
 
 World file in `gym-gazebo/gym-gazebo/envs/assets/worlds`\
 In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
-`<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`
+`<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`\
 In world file, link to corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
 
 ___
