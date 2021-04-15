@@ -3,7 +3,7 @@
 ### 1. Setup
 
 - clone this repo
-- clone catkin workspace repo
+- clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
 - go to root of catkin_ws
 - `catkin_make`
 - go to `gym-gazebo/examples/rover`
