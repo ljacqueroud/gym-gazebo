@@ -1,0 +1,7 @@
+digraph G {
+"CHASSIS" -> "camera_link"[label="Broadcaster: /robot_state_publisher_wheel\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"CHASSIS" -> "hokuyo"[label="Broadcaster: /robot_state_publisher_wheel\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"os1_sensor" -> "os1_imu"[label="Broadcaster: /robot_state_publisher_wheel\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"CHASSIS" -> "os1_sensor"[label="Broadcaster: /robot_state_publisher_wheel\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"os1_sensor" -> "os1_lidar"[label="Broadcaster: /robot_state_publisher_wheel\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+}
