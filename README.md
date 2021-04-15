@@ -1,25 +1,14 @@
 # My env
 
-### 1. Useful Paths
+### 1. Setup
 
-- examples:\
-  `gym-gazebo/examples`
-- environments:\
-  `gym-gazebo/gym-gazebo/envs`
-- worlds:\
-  `gym-gazebo/gym-gazebo/envs/assets/worlds`
-- robots (turtlebot):\
-  `catkin_ws/src/turtlebot/turtlebot_description/robots`
-- bash setups:\
-  `gym-gazebo/gym-gazebo/envs/installation`
-- launch files:\
-  `gym-gazebo/gym-gazebo/envs/assets/launch`
-
-
-- urdf launch:\
-  `catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
-- world launch:\
-  `catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
+- clone this repo
+- clone catkin workspace repo
+- go to root of catkin_ws
+- `catkin_make`
+- go to `gym-gazebo/examples/rover`
+- `python rover_main.py`
+- 
   
 ### 2. Build packages
 `cd gym-gazebo/gym-gazebo/envs/installation`\
@@ -30,6 +19,7 @@ remove useless(?) package (it causes errors with opencv)\
 `rm -r src/ar_track_alvar`\
 build with catkin\
 `catkin_make`
+
 
 ###  3. Helpful modifications
 
@@ -54,6 +44,27 @@ In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 `<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`\
 In world file, link to corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
 
+
+### 4. Helpful Paths
+
+- examples:\
+  `gym-gazebo/examples`
+- environments:\
+  `gym-gazebo/gym-gazebo/envs`
+- worlds:\
+  `gym-gazebo/gym-gazebo/envs/assets/worlds`
+- robots (turtlebot):\
+  `catkin_ws/src/turtlebot/turtlebot_description/robots`
+- bash setups:\
+  `gym-gazebo/gym-gazebo/envs/installation`
+- launch files:\
+  `gym-gazebo/gym-gazebo/envs/assets/launch`
+
+
+- urdf launch:\
+  `catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
+- world launch:\
+  `catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
 ___
 
 ___
