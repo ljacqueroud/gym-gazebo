@@ -8,7 +8,7 @@
 - `catkin_make`
 - go to `gym-gazebo/examples/rover`
 - `python rover_main.py`
-- 
+
   
 ### 2. Build packages
 `cd gym-gazebo/gym-gazebo/envs/installation`\
@@ -43,6 +43,13 @@ World file in `gym-gazebo/gym-gazebo/envs/assets/worlds`\
 In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 `<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`\
 In world file, link to corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
+
+
+##### 3.4 Change robot model (URDF)
+
+Urdf file in `catkin_ws/src/rover/rover_description/urdf`\
+or `gym-gazebo/gym_gazebo/envs/assets/urdf`\
+In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change `<arg name="urdf_file"  default="$(env MY_URDF_PATH)"/>`\
 
 
 ### 4. Helpful Paths
