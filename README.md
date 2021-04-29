@@ -52,6 +52,12 @@ or `gym-gazebo/gym_gazebo/envs/assets/urdf`\
 In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change `<arg name="urdf_file"  default="$(env MY_URDF_PATH)"/>`\
 
 
+##### 3.5 Access internal sensor data
+
+- IMU topic: `os1_cloud_node/imu/...`
+- Wheel speed: `rover/{right,left}_joint_effort_controller_{1,2,3}/state/process_value`
+
+
 ### 4. Helpful Paths
 
 - examples:\
