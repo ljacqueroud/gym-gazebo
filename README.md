@@ -56,6 +56,7 @@ In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 
 - IMU topic: `os1_cloud_node/imu/...`
 - Wheel speed: `rover/{right,left}_joint_effort_controller_{1,2,3}/state/process_value`
+- Joint angles: `rover/joint_states` (for each join: position, velocity, effort) or `gazebo/link_states` (for each link: position (x,y,z), orientation (x,y,z,w) linear (x,y,z), angular (x,y,z)
 
 
 ### 4. Helpful Paths
