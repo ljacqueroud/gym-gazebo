@@ -55,7 +55,8 @@ In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 ##### 3.5 Access internal sensor data
 
 - IMU topic: `os1_cloud_node/imu/...`
-- Wheel speed: `rover/{right,left}_joint_effort_controller_{1,2,3}/state/process_value`
+- Wheel speed: `rover/{right,left}_joint_effort_controller_{1,2,3}/state/process_value`\
+  `/gazebo` -> `(/rover/joint_states)` -> `/robot_state_publisher` -> `(/tf)` -> `/twist_to_wheels`
 - Joint angles: `rover/joint_states` (for each join: position, velocity, effort) or `gazebo/link_states` (for each link: position (x,y,z), orientation (x,y,z,w) linear (x,y,z), angular (x,y,z)
 
 
