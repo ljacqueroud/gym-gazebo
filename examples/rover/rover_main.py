@@ -24,7 +24,6 @@ def render():
 
 if __name__ == '__main__':
 
-    #env = GazeboRoverEnv()
     env = gym.make('GazeboRover-v0')
 
 
@@ -49,6 +48,7 @@ if __name__ == '__main__':
         done = False
 
         cumulated_reward = 0 #Should going forward give more reward then L/R ?
+        steps = 0
 
         observation = env.reset()
 
@@ -60,11 +60,13 @@ if __name__ == '__main__':
         #state = ''.join(map(str, observation))
         state = 0
 
-        for i in range(100000):
+        #for i in range(200):
+        while True:
+            steps += 1
 
             # Pick an action based on the current state
             #action = qlearn.chooseAction(state)
-            action = 0
+            action = 1
 
             # Execute the action and get feedback
             observation, reward, done, info = env.step(action)
@@ -83,7 +85,7 @@ if __name__ == '__main__':
             if not(done):
                 state = nextState
             else:
-                last_time_steps = numpy.append(last_time_steps, [int(i + 1)])
+                last_time_steps = numpy.append(last_time_steps, [int(steps)])
                 break
 
         if x % 100 == 0:
@@ -91,7 +93,8 @@ if __name__ == '__main__':
 
         m, s = divmod(int(time.time() - start_time), 60)
         h, m = divmod(m, 60)
-        print ("EP: "+str(x+1)+" - [alpha: "+str(round(qlearn.alpha,2))+" - gamma: "+str(round(qlearn.gamma,2))+" - epsilon: "+str(round(qlearn.epsilon,2))+"] - Reward: "+str(cumulated_reward)+"     Time: %d:%02d:%02d" % (h, m, s))
+        #print ("EP: "+str(x+1)+" - [alpha: "+str(round(qlearn.alpha,2))+" - gamma: "+str(round(qlearn.gamma,2))+" - epsilon: "+str(round(qlearn.epsilon,2))+"] - Reward: "+str(cumulated_reward)+"     Time: %d:%02d:%02d" % (h, m, s))
+        print ("EP: "+str(x+1)+" Reward: "+str(cumulated_reward)+"     Time: %d:%02d:%02d" % (h, m, s))
 
     #Github table content
     print ("\n|"+str(total_episodes)+"|"+str(qlearn.alpha)+"|"+str(qlearn.gamma)+"|"+str(initial_epsilon)+"*"+str(epsilon_discount)+"|"+str(highest_reward)+"| PICTURE |")
