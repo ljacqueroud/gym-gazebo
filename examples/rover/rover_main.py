@@ -7,7 +7,10 @@ import numpy
 import random
 import time
 import liveplot
-import qlearn
+import torch
+import torch.nn as nn
+
+import dnn
 
 from gym_gazebo.envs.rover.gazebo_rover import GazeboRoverEnv
  
@@ -24,8 +27,8 @@ def render():
 
 if __name__ == '__main__':
 
+    # setup gym environment
     env = gym.make('GazeboRover-v0')
-
 
     outdir = '/tmp/gazebo_gym_experiments'
     env = gym.wrappers.Monitor(env, outdir, force=True)
@@ -34,15 +37,33 @@ if __name__ == '__main__':
 
     last_time_steps = numpy.ndarray(0)
 
-    #qlearn = qlearn.QLearn(actions=range(env.action_space.n), alpha=0.1, gamma=0.8, epsilon=0.9)
+    # model dimensions
+    N_params = env.get_N_params()       # number of input parameters (= N_channels)
+    N_actions = env.get_N_actions()     # number of output actions (= N_output)
+    N_steps = env.get_N_steps()         # when changing n_steps, also change it in gazebo_rover.py (environment)
 
-    #initial_epsilon = qlearn.epsilon
+    # define the model
+    model = dnn.Model(N_channels = N_params, N_output = N_actions, N_steps = N_steps)
 
-    #epsilon_discount = 0.999 # 1098 eps to reach 0.1
+    # define device (gpu or cpu)
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    print("Device: ", device)
+    model.to(device)
+
+    # model parameters
+    total_episodes = 10000
+    max_episode_length = 100
+    highest_reward = 0
+
+    lr = 1e-3
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr = lr)
 
     start_time = time.time()
-    total_episodes = 10000
-    highest_reward = 0
+
 
     for x in range(total_episodes):
         done = False

@@ -8,6 +8,8 @@
   <param name="robot_description"
     command="$(find xacro)/xacro.py '$(find rover_description)/urdf/Rover_URDF_V6.urdf.xacro'"/>
 
+  <!-- =================== GAZEBO SIMULATION ====================== -->
+
   <!-- Launch world -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="use_sim_time" value="true"/>
@@ -26,17 +28,14 @@
     args="-urdf -param robot_description -model rover -z 1"
     output="screen" />
 
-  <!--
-  <include file="$(find rover_gazebo)/launch/includes/rover.launch.xml">
-    <arg name="urdf_name" value="$(arg urdf_file)"/>
-  </include>
-  -->
-
+  <!-- this node came with the gym example -->
   <!--
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
     <param name="publish_frequency" type="double" value="30.0" />
   </node>
   -->
+
+  <!-- =================== CONTROLLER ====================== -->
 
   <node name="tf_footprint_base"
     pkg="tf"
@@ -72,14 +71,14 @@
     pkg="rover_description"
     type="odom_to_tf.py" />
 
+
+  <!-- =================== PATH PLANNER AND MAPPING ====================== -->
+
   <!--  Converter node node -->
-  <!--
   <node pkg="elevation_mapping" type="elevation_mapping_Etienne" name="converter" output="screen">
   </node>
-  -->
 
   <!-- Elevation mapping node   -->
-  <!--
   <node pkg="elevation_mapping" type="elevation_mapping" name="elevation_mapping" output="screen">
 
     <rosparam command="load" file="$(find rover_description)/config/robot_elevation_map.yaml" />
@@ -87,93 +86,56 @@
     <rosparam command="load" file="$(find elevation_mapping)/config/sensor_processors/velodyne_HDL-32E.yaml" />
     <rosparam command="load" file="$(find elevation_mapping_demos)/config/postprocessing/postprocessor_pipeline.yaml" />
   </node>
-  -->
 
+  <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" name="pointcloud_to_laserscan">
+    <param name="min_height" value="0.3"/>
+    <param name="max_height" value="1.7"/>
+    <param name="range_min" value="0.2"/>
+    <param name="target_frame" value="CHASSIS"/>
 
-  <!-- gazebo.launch file -->
-
-  <!-- Start gazebo and load the world -->
-  <!--
-  <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="world_name" value="$(find rover_description)/worlds/mars_AR.world" />
-    <arg name="paused" value="true" />
-    <arg name="use_sim_time" value="true" />
-    <arg name="verbose" value="true" />
-    <arg name="debug" value="true" />
-  </include>
-  -->
-
-  <!--
-  <node name="tf_footprint_base"
-    pkg="tf"
-    type="static_transform_publisher"
-    args="0 0 0 0 0 0 base_link base_footprint 40" />
-    -->
-
-  <!-- Load the URDF into the ROS Parameter Server -->
-
-  <!--
-  <param name="robot_description"
-    command="$(find xacro)/xacro.py '$(find rover_description)/urdf/Rover_URDF_V6.urdf.xacro'"/>
-  -->
-
-  <!-- Run a python script to the send a service call to gazebo_ros to spawn the rover -->
-  <!--
-  <node name="spawn_model"
-    pkg="gazebo_ros"
-    type="spawn_model"
-    args="-urdf -param robot_description -model rover -z 1"
-    output="screen" />
-  -->
-
-  <!--
-  <node name="fake_joint_calibration"
-    pkg="rostopic"
-    type="rostopic"
-    args="pub /calibrated std_msgs/Bool true" />
-  -->
-
-
-  <!--
-  <node name="joint_state_publisher_gaz"
-    pkg="joint_state_publisher"
-    type="joint_state_publisher" />
-  -->
-
-  <!-- Start the wheel and base controllers -->
-  <!--
-  <include file="$(find wheels_control)/launch/wheels_control.launch" />
-  -->
-
-  <!-- Start the base stabilizer -->
-  <!--
-  <node name="base_PID"
-    pkg="wheels_control"
-    type="base_stabilizer.py" />
-  -->
-
-  <!-- Start the odometry node-->
-  <!--
-  <node name="odom_publisher"
-    pkg="rover_description"
-    type="odom_to_tf.py" />
-  -->
-
-  <!--  Converter node node -->
-  <!--
-  <node pkg="elevation_mapping" type="elevation_mapping_Etienne" name="converter" output="screen">
+    <remap from="cloud_in" to="/point_cloud_differentiated"/><!--/os1_cloud_node/points"/>-->
+    <remap from="scan" to="mybot/laser/scan2"/>
   </node>
-  -->
 
-  <!-- Elevation mapping node   -->
-  <!--
-  <node pkg="elevation_mapping" type="elevation_mapping" name="elevation_mapping" output="screen">
 
-    <rosparam command="load" file="$(find rover_description)/config/robot_elevation_map.yaml" />
+  <!-- Place map frame at odometry frame -->
+  <node pkg="tf" type="static_transform_publisher" name="map_odom_broadcaster"
+      args="0 0 0 0 0 0 map odom 100"/>
 
-    <rosparam command="load" file="$(find elevation_mapping)/config/sensor_processors/velodyne_HDL-32E.yaml" />
-    <rosparam command="load" file="$(find elevation_mapping_demos)/config/postprocessing/postprocessor_pipeline.yaml" />
+  <!-- Localization -->
+  <!--<node pkg="amcl" type="amcl" name="amcl" output="screen">
+    <remap from="scan" to="os1_cloud_node/points"/>--> <!--to="mybot/laser/scan"/>-->
+  <!--  <param name="odom_frame_id" value="odom"/>
+    <param name="odom_model_type" value="diff-corrected"/>
+    <param name="base_frame_id" value="link_chassis"/>
+    <param name="update_min_d" value="0.5"/>
+    <param name="update_min_a" value="1.0"/>
+  </node>-->
+
+  <!-- Move base -->
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+
+    <!-- <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" /> -->
+    <param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>
+    <!--<param name="base_global_planner" value="global_planner/GlobalPlanner" /> -->
+
+    <rosparam file="$(find mybot_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find mybot_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find mybot_navigation)/config/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find mybot_navigation)/config/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find mybot_navigation)/config/base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find mybot_navigation)/config/base_global_planner_params.yaml" command="load" />
+
+    <remap from="cmd_vel" to="cmd_vel"/>
+    <remap from="odom" to="odom"/>
+    <remap from="scan" to="mybot/laser/scan2"/> <!--to="os1_cloud_node/points"/>-->
+    <!--<remap from="cloud_in" to="os1_cloud_node/points" />-->
+    <param name="move_base/DWAPlannerROS/yaw_goal_tolerance" value="1.0"/>
+    <param name="move_base/DWAPlannerROS/xy_goal_tolerance" value="1.0"/>
+
   </node>
-  -->
+
+  <!-- Map differentiatior -->
+  <node pkg="publishers" type="map_differentiator" name="map_differentiator" />
 
 </launch>

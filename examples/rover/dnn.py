@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
+from torch.nn import functional as F
 
 
 class ConvBlock(nn.Module):
@@ -57,7 +58,7 @@ class LinBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, N_channels, N_output):
+    def __init__(self, N_channels, N_output, N_steps):
         super().__init__()
 
         self.encoder = nn.Sequential(
@@ -70,13 +71,11 @@ class Model(nn.Module):
                 )
 
         self.decoder = nn.Sequential(
-                LinBlock(N_in = , N_out = ),
-                LinBlock(N_in = , N_out = ),
-                LinBlock(N_in = , N_out = ),
-                LinBlock(N_in = , N_out = ),
-                LinBlock(N_in = , N_out = ),
-                nn.Linear(dim_in??, N_output),
-                nn.Softmax(),                   # try with and without softmax
+                LinBlock(N_in = N_channels*(N_steps-24), N_out = 128),
+                LinBlock(N_in = 128, N_out = 64),
+                LinBlock(N_in = 64, N_out = 32),
+                nn.Linear(32, N_output),
+                #nn.Softmax(),                   # try with and without softmax
                 )
 
     def forward(self, x):

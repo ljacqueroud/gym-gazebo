@@ -49,22 +49,38 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.action_space = spaces.Discrete(1) #F,L,R
         self.reward_range = (-np.inf, np.inf)
         self.steps_done = 0
-        self.max_steps = 50
+        self.max_steps = 5000
 
         # network parameters
-        self.N_steps = 20       # number of time steps to keep in memory for network input
+        self.N_params = 10 + 29     # imu (10) + joint_states (11+11+7)
+        self.N_actions = len(action_commands)       # number of action commands
+        self.N_steps = 30       # number of time steps to keep in memory for network input
+                                # when changing N_steps, also change it in rover_main.py (main script)
 
         # simulation parameters
         self.lin_speed = 5
         self.turn_speed = 7
 
         # ros parameters
-        self.imu = collections.deque(maxlen=self.N_steps)
-        self.joint_state = collections.deque(maxlen=self.N_steps)
         self.new_joint_state = JointState()
         self.new_joint_state_datatype = "none"
 
+        # parameters to keep in memory
+        self.imu = collections.deque(maxlen=self.N_steps)
+        self.joint_state = collections.deque(maxlen=self.N_steps)
+
         self._seed()
+
+
+    def get_N_params(self):
+        return self.N_params
+
+    def get_N_actions(self):
+        return self.N_actions
+
+    def get_N_steps(self):
+        return self.N_steps
+
 
     def discretize_observation(self,data,new_ranges):
         discretized_ranges = []
@@ -112,7 +128,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # define command based on action
         vel_cmd = self.get_vel_command(action)
-        self.vel_pub.publish(vel_cmd)
+        #self.vel_pub.publish(vel_cmd)
 
         #data = None
         #while data is None:
@@ -217,9 +233,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         """
         components of JointState() :
         joint_state.name
-        joint_state.position
-        joint_state.velocity
-        joint_state.effort      WARNING: effort is empty for data "chassis[0]"
+        joint_state.position [11]
+        joint_state.velocity [11] 
+        joint_state.effort [7]       WARNING: effort is empty for data "chassis[0]"
 
         data can be :
         "chassis": [Base_joint, BOGIE_LEFT, BOGIE_RIGHT, ROCKER_RIGHT]
