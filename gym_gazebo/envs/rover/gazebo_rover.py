@@ -5,6 +5,7 @@ import time
 import numpy as np
 import collections
 import copy
+import torch
 
 from gym import utils, spaces
 from gym_gazebo.envs import gazebo_env
@@ -30,7 +31,7 @@ joint_state_datatypes = ["none", "chassis", "wheels"]
 class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
 
-    #################### CLASS FUNCTIONS ########################
+    #################### INIT FUNCTION ########################
 
     def __init__(self):
         # Launch the simulation with the given launchfile name
@@ -49,10 +50,11 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.action_space = spaces.Discrete(1) #F,L,R
         self.reward_range = (-np.inf, np.inf)
         self.steps_done = 0
-        self.max_steps = 5000
 
         # network parameters
-        self.N_params = 10 + 29     # imu (10) + joint_states (11+11+7)
+        self.N_params_imu = 10                      # number of imu data
+        self.N_params_joint_state = 29              # number of joint state data
+        self.N_params = 10 + 29 
         self.N_actions = len(action_commands)       # number of action commands
         self.N_steps = 30       # number of time steps to keep in memory for network input
                                 # when changing N_steps, also change it in rover_main.py (main script)
@@ -68,9 +70,18 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # parameters to keep in memory
         self.imu = collections.deque(maxlen=self.N_steps)
         self.joint_state = collections.deque(maxlen=self.N_steps)
+        self.initialize_state()
+
+        self.imu_counter=0
+        self.joint_counter=0
+
+        # flags for multi threads conflicts
+        self.changing_params = False
+        self.saving_state = False
 
         self._seed()
 
+    #################### GET AND SET FUNCTIONS ########################
 
     def get_N_params(self):
         return self.N_params
@@ -81,23 +92,50 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
     def get_N_steps(self):
         return self.N_steps
 
+    def get_state(self):
+        # wait until other processes are done
+        while(self.changing_params):
+            time.sleep(0.01)
+        self.saving_state = True
 
-    def discretize_observation(self,data,new_ranges):
-        discretized_ranges = []
-        min_range = 0.2
-        done = False
-        mod = len(data.ranges)/new_ranges
-        for i, item in enumerate(data.ranges):
-            if (i%mod==0):
-                if data.ranges[i] == float ('Inf'):
-                    discretized_ranges.append(6)
-                elif np.isnan(data.ranges[i]):
-                    discretized_ranges.append(0)
-                else:
-                    discretized_ranges.append(int(data.ranges[i]))
-            if (min_range > data.ranges[i] > 0):
-                done = True
-        return discretized_ranges,done
+        print("imu {}".format(self.imu_counter))
+        print("joint_state {}".format(self.joint_counter))
+        #print("imu {}: {}".format(self.imu_counter,self.imu))
+        #print("joint_state {}: {}".format(self.joint_counter,self.joint_state))
+
+        # save state from imu and joint_state data
+        state = torch.Tensor([]).unsqueeze(1)
+        for imu, joint in zip(self.imu, self.joint_state):
+            state_t = torch.cat((imu, joint), 0)    # state at time t, of size [39]
+            state_t = state_t.unsqueeze(1)      # expand dims: size [39,1]
+            if state.nelement()==0:
+                state = state_t                 # initialize tensor state
+            else:
+                state = torch.cat((state, state_t), 1)  # concatenate along dimension 1: size [39,N]
+
+        # set flag
+        self.saving_state = False
+
+        return state.unsqueeze(0)                       # final tensor of size [1,39, N_steps]
+
+    def get_done(self):
+        if self.steps_done >= self.max_steps:
+            done = True
+        else:
+            done = False
+        return done
+
+    def set_max_steps(self, max_steps):
+        self.max_steps = max_steps
+
+    #################### ENVIRONMENT FUNCTIONS ########################
+
+    def initialize_state(self):
+        """ sets imu and joint_states to zero
+        """
+        for _ in range(self.N_steps):
+            self.imu.append(torch.zeros([self.N_params_imu]))
+            self.joint_state.append(torch.zeros([self.N_params_joint_state]))
 
     def get_vel_command(self, action):
         vel_cmd = Twist()
@@ -126,9 +164,10 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         #print("imu data: {}".format(self.imu))
         #print("joint data: {}".format(self.joint_state))
 
-        # define command based on action
-        vel_cmd = self.get_vel_command(action)
-        #self.vel_pub.publish(vel_cmd)
+        # define command based on action (if action = None: do nothing)
+        if action is not None:
+            vel_cmd = self.get_vel_command(action)
+            self.vel_pub.publish(vel_cmd)
 
         #data = None
         #while data is None:
@@ -150,11 +189,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.steps_done += 1
 
         #state,done = self.discretize_observation(data,5)
-        state = 0
-        if self.steps_done >= self.max_steps:
-            done = True
-        else:
-            done = False
+        # update state and done boolean
+        state = self.get_state()
+        done = self.get_done()
 
         # define rewards
         if not done:
@@ -163,7 +200,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             else:
                 reward = 1
         else:
-            reward = -200
+            reward = 10
 
         return state, reward, done, {}
 
@@ -179,21 +216,14 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             print ("/gazebo/reset_simulation service call failed")
 
         # Unpause simulation to make observation
-        rospy.wait_for_service('/gazebo/unpause_physics')
-        try:
-            #resp_pause = pause.call()
-            self.unpause()
-        except (rospy.ServiceException) as e:
-            print ("/gazebo/unpause_physics service call failed")
+        #rospy.wait_for_service('/gazebo/unpause_physics')
+        #try:
+        #    #resp_pause = pause.call()
+        #    self.unpause()
+        #except (rospy.ServiceException) as e:
+        #    print ("/gazebo/unpause_physics service call failed")
 
-        #read laser data
-        #data = None
-        #while data is None:
-        #    try:
-        #        data = rospy.wait_for_message('/scan', LaserScan, timeout=5)
-        #    except:
-        #        pass
-
+        # Pause simulation
         rospy.wait_for_service('/gazebo/pause_physics')
         try:
             #resp_pause = pause.call()
@@ -201,15 +231,15 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         except (rospy.ServiceException) as e:
             print ("/gazebo/pause_physics service call failed")
 
-        #state = self.discretize_observation(data,5)
-        state = 0
+        # reset and get state
+        self.initialize_state()
         self.steps_done = 0
 
-        return state
+        return self.get_state()
 
 
 
-    #################### CALLBACK FUNCTIONS ########################
+    #################### ROS CALLBACK FUNCTIONS ########################
 
     def imu_sub_callback(self, imu):
         """
@@ -222,12 +252,23 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         imu.linear_acceleration_covariance
         """
 
+        # wait until other processes are done
+        while(self.changing_params or self.saving_state):
+            time.sleep(0.01)
+        self.changing_params = True
+
+        self.imu_counter+=1
+
         # save only interesting data (ignore covariances)
-        new_imu = Imu()
-        new_imu.orientation = imu.orientation
-        new_imu.angular_velocity = imu.angular_velocity
-        new_imu.linear_acceleration = imu.linear_acceleration
+        new_imu = torch.cat((
+            torch.Tensor([imu.orientation.x,imu.orientation.y,imu.orientation.z,imu.orientation.w]),
+            torch.Tensor([imu.linear_acceleration.x,imu.linear_acceleration.y,imu.linear_acceleration.z]),
+            torch.Tensor([imu.angular_velocity.x,imu.angular_velocity.y,imu.angular_velocity.z]),
+            ), 0)                      
         self.imu.append(new_imu)
+
+        # set flags
+        self.changing_params = False
 
     def joint_sub_callback(self, joint_state):
         """
@@ -241,6 +282,13 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         "chassis": [Base_joint, BOGIE_LEFT, BOGIE_RIGHT, ROCKER_RIGHT]
         "wheels": [ROCKER_LEFT, WHEEL_LEFT_1, WHEEL_LEFT_2, WHEEL_LEFT_3, WHEEL_RIGHT_1, WHEEL_RIGHT_2, WHEEL_RIGHT_3]
         """
+
+        # wait until other processes are done
+        while(self.changing_params or self.saving_state):
+            time.sleep(0.01)
+        self.changing_params = True
+
+        self.joint_counter+=1
 
         # define data type (0 or 1)
         datatype = joint_state_datatypes[1] if len(joint_state.position) == 4 else joint_state_datatypes[2]
@@ -265,7 +313,13 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
                 # apply mask here if want to remove some variables
 
                 # add complete new joint state to list
-                self.joint_state.append(copy.copy(self.new_joint_state))
+                new_joint_state_tensor = torch.cat((
+                    torch.Tensor(self.new_joint_state.position),
+                    torch.Tensor(self.new_joint_state.velocity),
+                    torch.Tensor(self.new_joint_state.effort)
+                    ), 0)            
+                self.joint_state.append(new_joint_state_tensor)
+
                 # reset new joint state
                 self.new_joint_state_datatype = "none"
 
@@ -276,4 +330,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             if datatype == joint_state_datatypes[2]: 
                 self.new_joint_state.effort = joint_state.effort
             self.new_joint_state_datatype = datatype
+
+        # set flags
+        self.changing_params = False
 

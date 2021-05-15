@@ -9,8 +9,8 @@ class ConvBlock(nn.Module):
     """
     1D convolution along the time dimension
 
-    input: B x N x C_in
-    output: B x (N-k+1) x C_out
+    input: B x C_in x N
+    output: B x C_out x (N-k+1)
 
     - B: batch size
     - N: number of time series contained
@@ -63,7 +63,7 @@ class Model(nn.Module):
 
         self.encoder = nn.Sequential(
                 ConvBlock(C_in = N_channels, C_out = N_channels),
-                ConvBlock(C_in = N_channels, C_out = N_channels),
+                ConvBlock(C_in = N_channels, C_out = N_channels), 
                 ConvBlock(C_in = N_channels, C_out = N_channels),
                 ConvBlock(C_in = N_channels, C_out = N_channels),
                 ConvBlock(C_in = N_channels, C_out = N_channels),
@@ -75,12 +75,12 @@ class Model(nn.Module):
                 LinBlock(N_in = 128, N_out = 64),
                 LinBlock(N_in = 64, N_out = 32),
                 nn.Linear(32, N_output),
-                #nn.Softmax(),                   # try with and without softmax
+                nn.Softmax(),                   # try with and without softmax
                 )
 
     def forward(self, x):
-        x = self.encoder(x)     # encoder pass (convolutions)
-        x = x.view(-1,          # concatenate output
-        x = self.decoder(x)     # decoder pass (fully connected)
+        x = self.encoder(x)         # encoder pass (convolutions)
+        x = x.view(x.shape[0], -1)  # concatenate output
+        x = self.decoder(x)         # decoder pass (fully connected)
         return x
                 
