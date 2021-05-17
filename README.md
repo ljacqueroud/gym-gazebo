@@ -6,13 +6,13 @@
 - clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
 - go to root of catkin_ws
 - `catkin_make`
+- `source catkin_ws/devel/setup.bash`
 - go to `gym-gazebo/examples/rover`
 - `python rover_main.py`
 
   
 ### 2. Build packages
 `cd gym-gazebo/gym-gazebo/envs/installation`\
-next command: **stop when it starts building packages**\
 `bash setup_melodic.bash`\
 remove useless(?) package (it causes errors with opencv)\
 `cd catkin_ws`\
