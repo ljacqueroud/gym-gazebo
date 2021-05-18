@@ -8,7 +8,8 @@
 - `catkin_make`
 - `source catkin_ws/devel/setup.bash`
 - go to `gym-gazebo/examples/rover`
-- `python rover_main.py`
+- `python rover_main.py`\
+**WARNING** when using `catkin_make` make sure other workspaces are not sourced!
 
   
 ### 2. Build packages
