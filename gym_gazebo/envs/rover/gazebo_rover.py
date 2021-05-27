@@ -9,12 +9,17 @@ import torch
 
 from gym import utils, spaces
 from gym_gazebo.envs import gazebo_env
-from geometry_msgs.msg import Twist
 from std_srvs.srv import Empty
 
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
 from sensor_msgs.msg import Imu
 from sensor_msgs.msg import LaserScan
 from sensor_msgs.msg import JointState
+from nav_msgs.msg import Odometry
+from nav_msgs.msg import Path
+from rosgraph_msgs.msg import Clock
 
 from gym.utils import seeding
 
@@ -22,7 +27,8 @@ action_commands = [
         [1,0,0,0],      # forward
         [-1,0,0,0],     # backward
         [0,0,0,1],      # left
-        [0,0,0,-1]      # right
+        [0,0,0,-1],     # right
+        [0,0,0,0],      # stop
     ]
 
 joint_state_datatypes = ["none", "chassis", "wheels"]
@@ -38,9 +44,17 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         gazebo_env.GazeboEnv.__init__(self, "GazeboRover.launch.xml")
 
         # initiate ros services
-        self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=5)
+        # publishers
+        self.vel_pub = rospy.Publisher('cmd_vel_chosen', Twist, queue_size=5)
+        self.goal_pub = rospy.Publisher('goal_point', Point, queue_size=5)
+        # subscribers
+        #self.vel_sub = rospy.Subscriber('cmd_vel', Twist, self.vel_sub_callback)
         self.imu_sub = rospy.Subscriber('os1_cloud_node/imu', Imu, self.imu_sub_callback)
         self.joint_sub = rospy.Subscriber('/rover/joint_states', JointState, self.joint_sub_callback)
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_sub_callback)
+        self.path_sub = rospy.Subscriber('/move_base/RAstarPlannerROS/plan', Path, self.path_sub_callback)
+        self.clock_sub = rospy.Subscriber('/clock', Clock, self.clock_sub_callback)
+
 
         self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
@@ -49,12 +63,14 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # environment parameters
         self.action_space = spaces.Discrete(1) #F,L,R
         self.reward_range = (-np.inf, np.inf)
-        self.steps_done = 0
 
         # network parameters
         self.N_params_imu = 10                      # number of imu data
         self.N_params_joint_state = 29              # number of joint state data
-        self.N_params = 10 + 29 
+        self.N_params_sensor_state = self.N_params_imu + self.N_params_joint_state 
+        self.N_params_odom = 3                      # number of odom data
+        self.N_params_path = 5                      # number of path poses to keep
+        self.N_params_path_state = self.N_params_odom + self.N_params_path*2
         self.N_actions = len(action_commands)       # number of action commands
         self.N_steps = 30       # number of time steps to keep in memory for network input
                                 # when changing N_steps, also change it in rover_main.py (main script)
@@ -62,6 +78,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # simulation parameters
         self.lin_speed = 5
         self.turn_speed = 7
+        self.sim_time_step = 0.1
 
         # ros parameters
         self.new_joint_state = JointState()
@@ -70,21 +87,26 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # parameters to keep in memory
         self.imu = collections.deque(maxlen=self.N_steps)
         self.joint_state = collections.deque(maxlen=self.N_steps)
-        self.initialize_state()
-
-        self.imu_counter=0
-        self.joint_counter=0
 
         # flags for multi threads conflicts
-        self.changing_params = False
-        self.saving_state = False
+        self.changing_joint_state = False
+        self.changing_imu = False
+        self.changing_odom = False
+        self.changing_path = False
+        self.changing_clock = False
+
+        # initialize all variables
+        self.initiliaze_vars()
 
         self._seed()
 
     #################### GET AND SET FUNCTIONS ########################
 
-    def get_N_params(self):
-        return self.N_params
+    def get_N_params_sensor_state(self):
+        return self.N_params_sensor_state
+
+    def get_N_params_path_state(self):
+        return self.N_params_path_state
 
     def get_N_actions(self):
         return self.N_actions
@@ -92,14 +114,15 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
     def get_N_steps(self):
         return self.N_steps
 
-    def get_state(self):
+    def get_sensor_state(self):
         # wait until other processes are done
-        while(self.changing_params):
+        while(self.changing_joint_state or self.changing_imu):
             time.sleep(0.01)
-        self.saving_state = True
+        self.changing_joint_state = True
+        self.changing_imu = True
 
-        print("imu {}".format(self.imu_counter))
-        print("joint_state {}".format(self.joint_counter))
+        #print("imu {}".format(self.imu_counter))
+        #print("joint_state {}".format(self.joint_counter))
         #print("imu {}: {}".format(self.imu_counter,self.imu))
         #print("joint_state {}: {}".format(self.joint_counter,self.joint_state))
 
@@ -113,10 +136,37 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             else:
                 state = torch.cat((state, state_t), 1)  # concatenate along dimension 1: size [39,N]
 
-        # set flag
-        self.saving_state = False
+        # set flags
+        self.changing_joint_state = False
+        self.changing_imu = False
 
         return state.unsqueeze(0)                       # final tensor of size [1,39, N_steps]
+
+    def get_path_state(self):
+        # wait until other processes are done
+        while(self.changing_odom or self.changing_path):
+            time.sleep(0.01)
+        self.changing_odom = True
+        self.changing_path = True
+        
+        # save path state from odom and path
+        pos = torch.Tensor([self.odom.position.x, self.odom.position.y, self.odom.orientation.z])
+        path_pos = []
+        for pose in self.path.poses[:self.N_params_path]:  # save first N_params_path from path
+            path_pos.append([pose.pose.position.x, pose.pose.position.y])
+        if len(path_pos) < self.N_params_path:          # repeat last path_pos to get to N_params_path
+            if not len(path_pos):                           
+                path_pos.append([0,0])                  # add zero element if list is empty
+            for _ in range(self.N_params_path - len(path_pos)):
+                path_pos.append(path_pos[-1])
+        path_pos = torch.Tensor(path_pos)
+        path_state = torch.cat((pos.view(-1), path_pos.view(-1)), 0)        # concatenate in [N]
+
+        # set flags
+        self.changing_odom = False
+        self.changing_path = False
+
+        return path_state.unsqueeze(0)                  # final tensor of size [1,N]
 
     def get_done(self):
         if self.steps_done >= self.max_steps:
@@ -130,14 +180,50 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
     #################### ENVIRONMENT FUNCTIONS ########################
 
-    def initialize_state(self):
+    def initialize_sensor_state(self):
         """ sets imu and joint_states to zero
         """
         for _ in range(self.N_steps):
             self.imu.append(torch.zeros([self.N_params_imu]))
             self.joint_state.append(torch.zeros([self.N_params_joint_state]))
 
+        self.imu_counter=0
+        self.joint_counter=0
+
+#    def initialize_vel_cmd(self):
+#        self.path_planner_cmd = self.get_vel_command(self.N_actions-1)     # init with stop command
+
+    def initialize_odom(self):
+        self.odom = Pose()
+        self.last_pos = np.zeros(self.N_params_odom)
+
+    def initialize_path(self):
+        self.path = Path()
+
+    def initialize_clock(self):
+        self.clock = Clock()
+
+    def initiliaze_vars(self):
+        self.initialize_sensor_state()
+        #self.initialize_vel_cmd()
+        self.initialize_odom()
+        self.initialize_path()
+        self.initialize_clock()
+        self.generate_new_goal()
+        self.steps_done = 0
+
+    def generate_new_goal(self, goal_point=None):
+        """ generate goal_point randomly (if not given) and publish
+        """
+        if not goal_point:
+            goal_point = Point()
+            goal_point.x = np.random.uniform(low=-5, high=5)
+            goal_point.y = np.random.uniform(low=-5, high=5)
+        print("==================== new goal ======================\n{}".format(goal_point))
+        self.goal_pub.publish(goal_point)
+
     def get_vel_command(self, action):
+        #if action > 0:      # action [1:N_actions]
         vel_cmd = Twist()
         vel_cmd.linear.x = action_commands[action][0] * self.lin_speed
         vel_cmd.linear.y = action_commands[action][1] * self.lin_speed
@@ -145,8 +231,61 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         vel_cmd.angular.x = 0
         vel_cmd.angular.y = 0
         vel_cmd.angular.z = action_commands[action][3] * self.turn_speed
+        #else:           # action 0
+        #    vel_cmd = self.path_planner_cmd
 
         return vel_cmd
+
+    def wait_gazebo_sim(self, wait_time=0.2):
+        """ Wait for wait_time using the simulation time
+        """
+        start_time = self.clock.clock.secs + self.clock.clock.nsecs*(10**(-9))
+        done_waiting = False
+        while not done_waiting:
+            while self.changing_clock:
+                time.sleep(0.01)
+            self.changing_clock = True
+            new_time = self.clock.clock.secs + self.clock.clock.nsecs*(10**(-9))
+            self.changing_clock = False
+            if (new_time - start_time) >= wait_time:
+                break
+            time.sleep(0.05)
+
+
+    def compute_reward(self, done, action, path_state):
+        """
+        Compute reward based on reward function
+        R = 
+        """
+        
+        # convert to numpy
+        path_state = path_state.squeeze(0).numpy()
+        
+        # get current pos of rover
+        current_pos = path_state[:3]
+
+        # find closest path points to rover's previous position
+        path_dist = np.zeros(self.N_params_path)
+        for i in range(self.N_params_path):
+            path_dist[i] = np.linalg.norm(path_state[self.N_params_odom + i*2 : self.N_params_odom + (i+1)*2] - self.last_pos[:2])
+        closest_points_idx = path_dist.argsort()[:2]
+        closest_points_idx.sort()
+        closest_points = path_state[[closest_points_idx[0],closest_points_idx[0]+1,closest_points_idx[1], closest_points_idx[1]+1]]
+
+        # find parallel and orthogonal projections of path traveled on path
+        path_traveled = current_pos[:2] - self.last_pos[:2]
+        path_real = closest_points[2:] - closest_points[:2]
+        if np.linalg.norm(path_real) < 1e-10:       # if the rover didn't move
+            proj_parallel = 0
+            proj_orthogonal = 0
+        else:
+            proj_parallel = np.dot(path_traveled, path_real) / np.linalg.norm(path_real)
+            proj_orthogonal = np.sqrt(np.dot(path_traveled,path_traveled) - proj_parallel**2)
+
+        # get reward
+        reward = proj_parallel - proj_orthogonal
+
+        return reward
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -176,7 +315,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         #    except:
         #        pass
 
-        time.sleep(0.2)
+
+        self.wait_gazebo_sim(wait_time = self.sim_time_step)       # wait X seconds in the simulation
 
         rospy.wait_for_service('/gazebo/pause_physics')
         try:
@@ -188,21 +328,18 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # update number of steps
         self.steps_done += 1
 
-        #state,done = self.discretize_observation(data,5)
         # update state and done boolean
-        state = self.get_state()
+        sensor_state = self.get_sensor_state()
+        path_state = self.get_path_state()
         done = self.get_done()
 
-        # define rewards
-        if not done:
-            if action == 0:
-                reward = 5
-            else:
-                reward = 1
-        else:
-            reward = 10
+        # compute reward
+        reward = self.compute_reward(done, action, path_state)
 
-        return state, reward, done, {}
+        # update last position
+        self.last_pos = path_state.squeeze(0)[:self.N_params_odom].numpy()
+
+        return [sensor_state, path_state], reward, done, {}
 
     def reset(self):
 
@@ -231,15 +368,26 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         except (rospy.ServiceException) as e:
             print ("/gazebo/pause_physics service call failed")
 
-        # reset and get state
-        self.initialize_state()
-        self.steps_done = 0
+        # Reset everything
+        self.initiliaze_vars()
 
-        return self.get_state()
+        # update state and done boolean
+        sensor_state = self.get_sensor_state()
+        path_state = self.get_path_state()
+
+        # update last position
+        self.last_pos = path_state.squeeze(0)[:self.N_params_odom].numpy()
+
+        return [sensor_state, path_state]
 
 
 
     #################### ROS CALLBACK FUNCTIONS ########################
+
+#    def vel_sub_callback(self, twist):
+#        self.path_planner_cmd = twist
+#        print("================================== GOT VEL FROM PATH PLANNER: {}".format(twist))
+
 
     def imu_sub_callback(self, imu):
         """
@@ -253,9 +401,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         """
 
         # wait until other processes are done
-        while(self.changing_params or self.saving_state):
+        while(self.changing_imu):
             time.sleep(0.01)
-        self.changing_params = True
+        self.changing_imu = True
 
         self.imu_counter+=1
 
@@ -268,7 +416,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.imu.append(new_imu)
 
         # set flags
-        self.changing_params = False
+        self.changing_imu = False
 
     def joint_sub_callback(self, joint_state):
         """
@@ -284,9 +432,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         """
 
         # wait until other processes are done
-        while(self.changing_params or self.saving_state):
+        while(self.changing_joint_state):
             time.sleep(0.01)
-        self.changing_params = True
+        self.changing_joint_state = True
 
         self.joint_counter+=1
 
@@ -332,5 +480,67 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             self.new_joint_state_datatype = datatype
 
         # set flags
-        self.changing_params = False
+        self.changing_joint_state = False
+
+
+    def odom_sub_callback(self, odometry):
+        """
+        Odometry:
+        pose:
+            pose:
+                position:
+                    x,y,z
+                orientation:
+                    x,y,z,w
+        twist:
+            ...
+        """
+
+        # wait for other processes to be done
+        while(self.changing_odom):
+            time.sleep(0.01)
+        self.changing_odom = True
+
+        # save relevant info
+        self.odom.position.x = odometry.pose.pose.position.x
+        self.odom.position.y = odometry.pose.pose.position.y
+        self.odom.orientation.z = odometry.pose.pose.orientation.z
+
+        # set flag
+        self.changing_odom = False
+
+
+    def path_sub_callback(self, path):
+        """
+        Path:
+        poses[N]:
+            pose:
+                position:
+                    x,y,z
+                orientation:
+                    x,y,z,w = [0,0,0,1]
+        """
+
+        # wait for other processes to be done
+        while(self.changing_path):
+            time.sleep(0.01)
+        self.changing_path = True
+
+        # save relevant info
+        self.path = path
+
+        # set flag
+        self.changing_path = False
+
+    def clock_sub_callback(self, clock):
+        """
+        Clock:
+        secs
+        nsecs
+        """
+        while self.changing_clock:
+            time.sleep(0.01)
+        self.changing_clock = True
+        self.clock = clock
+        self.changing_clock = False
 

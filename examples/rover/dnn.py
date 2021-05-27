@@ -58,10 +58,10 @@ class LinBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, N_channels, N_output, N_steps):
+    def __init__(self, N_channels, N_output, N_steps, N_y):
         super().__init__()
 
-        self.encoder = nn.Sequential(
+        self.convs = nn.Sequential(
                 ConvBlock(C_in = N_channels, C_out = N_channels),
                 ConvBlock(C_in = N_channels, C_out = N_channels), 
                 ConvBlock(C_in = N_channels, C_out = N_channels),
@@ -70,17 +70,24 @@ class Model(nn.Module):
                 ConvBlock(C_in = N_channels, C_out = N_channels),
                 )
 
-        self.decoder = nn.Sequential(
-                LinBlock(N_in = N_channels*(N_steps-24), N_out = 128),
+        self.fc = nn.Sequential(
+                LinBlock(N_in = (N_channels*(N_steps-24) + N_y), N_out = 128),
                 LinBlock(N_in = 128, N_out = 64),
                 LinBlock(N_in = 64, N_out = 32),
                 nn.Linear(32, N_output),
-                nn.Softmax(),                   # try with and without softmax
+                nn.Softmax(1),                   # try with and without softmax
                 )
 
-    def forward(self, x):
-        x = self.encoder(x)         # encoder pass (convolutions)
-        x = x.view(x.shape[0], -1)  # concatenate output
-        x = self.decoder(x)         # decoder pass (fully connected)
+    def forward(self, x, y):
+        # 1D convolutions
+        x = self.convs(x)         # encoder pass (convolutions)
+
+        # reshape x and concatenate with y
+        x = x.view(x.shape[0], -1) 
+        x = torch.cat((x,y), 1)
+
+        # fully connected layers
+        x = self.fc(x)         # decoder pass (fully connected)
+
         return x
                 

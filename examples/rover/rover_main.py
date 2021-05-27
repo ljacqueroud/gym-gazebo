@@ -40,14 +40,15 @@ if __name__ == '__main__':
     last_time_steps = np.ndarray(0)
 
     # model dimensions
-    N_params = env.get_N_params()       # number of input parameters (= N_channels)
+    N_params_sensor_state = env.get_N_params_sensor_state() # number of input params (= N_channels)
+    N_params_path_state = env.get_N_params_path_state()     # number of input params on fc (= N_y)
     N_actions = env.get_N_actions()     # number of output actions (= N_output)
-    N_steps = env.get_N_steps()         # when changing n_steps, also change it in gazebo_rover.py (environment)
+    N_steps = env.get_N_steps()         # number of time steps it remembers
     action_array = [i for i in range(N_actions)]    # create array of actions ID
 
     # define the model
     print("============== Creating neural network ===============")
-    model = dnn.Model(N_channels = N_params, N_output = N_actions, N_steps = N_steps)
+    model = dnn.Model(N_channels = N_params_sensor_state, N_output = N_actions, N_steps = N_steps, N_y = N_params_path_state)
 
     # define device (gpu or cpu)
     if torch.cuda.is_available():
@@ -59,11 +60,11 @@ if __name__ == '__main__':
 
     # model parameters
     total_episodes = 10000
-    max_episode_length = 1000
+    max_episode_length = 50
     env.set_max_steps(max_episode_length)
     highest_reward = 0
 
-    lr = 1e-2
+    lr = 2e-2
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr = lr)
 
@@ -79,28 +80,25 @@ if __name__ == '__main__':
         steps = 0
         transitions = []
 
-        state = env.reset()
+        # reset environment
+        state = env.reset()                 # state = [sensor_state, path_state]
 
-        #if qlearn.epsilon > 0.05:
-        #    qlearn.epsilon *= epsilon_discount
-
-        #render() #defined above, not env.render()
-
-
-        #for i in range(200):
         while True:
             steps += 1
 
             # Pick an action based on the current state
-            action_prob = model(state).squeeze(0)       # get action [1,4] and remove dim 0 [4,] 
-            print("action: {}".format(action_prob))
+            action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
+            print("action probability: {}".format(action_prob[:]))
             action = np.random.choice(action_array, p=action_prob.data.numpy())
             print("action chosen: {}".format(action))
 
+            #print("path: {}".format(env.get_path()))
+            #print("odom: {}".format(env.get_odom()))
+
             # Execute the action and get feedback
             next_state, reward, done, info = env.step(action)
-            print("######## state: {}".format(next_state))
-            transitions.append((state, action, reward, steps))
+            #print("######## state: {}".format(next_state))
+            transitions.append((state[0], state[1], action, reward, steps))
             cumulated_reward += reward
             state = next_state
 
@@ -115,23 +113,25 @@ if __name__ == '__main__':
         if highest_reward < cumulated_reward:
             highest_reward = cumulated_reward
         score.append(cumulated_reward)
-        reward_batch = torch.Tensor([r for (s,a,r,n) in transitions]).flip(dims=(0,))
-        state_batch = torch.cat([s for (s,a,r,n) in transitions])
-        action_batch = torch.Tensor([a for (s,a,r,n) in transitions])
+        reward_batch = torch.Tensor([r for (s1,s2,a,r,n) in transitions])#.flip(dims=(0,))
+        sensor_state_batch = torch.cat([s1 for (s1,s2,a,r,n) in transitions])
+        path_state_batch = torch.cat([s2 for (s1,s2,a,r,n) in transitions])
+        action_batch = torch.Tensor([a for (s1,s2,a,r,n) in transitions])
 
         # compute expected reward (= at each step, the reward that it gets after that step)
-        batch_Gvals =[]
+        batch_Gvals = []
         for i in range(len(transitions)):
-            new_Gval=0
+            new_Gval = 0
             for j in range(i,len(transitions)):
-                 new_Gval=new_Gval+reward_batch[j].numpy()
+                 new_Gval = new_Gval + reward_batch[j].numpy()
+            #new_Gval = new_Gval + reward_batch[i].numpy()
             batch_Gvals.append(new_Gval)
-        expected_returns_batch=torch.FloatTensor(batch_Gvals)
+        expected_returns_batch = torch.FloatTensor(batch_Gvals)
         expected_returns_batch -= expected_returns_batch.min()
         expected_returns_batch *= expected_returns_batch.max()
 
         # get the model output
-        pred_batch = model(state_batch)
+        pred_batch = model(sensor_state_batch, path_state_batch)
         prob_batch = pred_batch.gather(dim=1, index=action_batch.long().view(-1,1)).squeeze()
 
         # compute the loss
@@ -141,7 +141,6 @@ if __name__ == '__main__':
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
 
         m, s = divmod(int(time.time() - start_time), 60)
         h, m = divmod(m, 60)

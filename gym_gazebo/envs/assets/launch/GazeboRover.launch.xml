@@ -113,7 +113,7 @@
   </node>-->
 
   <!-- Move base -->
-  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="log">
 
     <!-- <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" /> -->
     <param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>
