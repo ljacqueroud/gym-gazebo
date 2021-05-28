@@ -61,6 +61,11 @@ In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 - Joint angles: `rover/joint_states` (for each join: position, velocity, effort) or `gazebo/link_states` (for each link: position (x,y,z), orientation (x,y,z,w) linear (x,y,z), angular (x,y,z)
 
 
+##### 3.6 Change verbose level
+
+In `$ROS_ROOT/config/rosconsole.config` set verbose to `DEBUG`,`INFO`,`WARN`,`ERROR`,`FATAL`
+
+
 ### 4. Helpful Paths
 
 - examples:\
