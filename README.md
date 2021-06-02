@@ -2,24 +2,45 @@
 
 ### 1. Setup
 
-- clone this repo
+- install all packages listed in [gym_gazebo](https://github.com/ljacqueroud/gym-gazebo/blob/master/INSTALL.md) and [xplore](https://github.com/EPFLXplore/main_NAV_ws) (or check next section)
 - clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
-- go to root of catkin_ws
-- `catkin_make`
-- `source catkin_ws/devel/setup.bash`
-- go to `gym-gazebo/examples/rover`
-- `python rover_main.py`\
+- `catkin init ; catkin build`
+- add `source catkin_ws/devel/setup.bash` to `.bashrc`
+- clone this repo
+- `cd gym_gazebo`
+- `sudo pip install -e .`
 **WARNING** when using `catkin_make` make sure other workspaces are not sourced!
 
   
 ### 2. Build packages
-`cd gym-gazebo/gym-gazebo/envs/installation`\
-`bash setup_melodic.bash`\
-remove useless(?) package (it causes errors with opencv)\
-`cd catkin_ws`\
-`rm -r src/ar_track_alvar`\
-build with catkin\
-`catkin_make`
+
+Here is a list of all packages to install:
+```
+sudo apt install \
+ros-melodic-desktop-full \
+python-pip \
+python3-vcstool python3-pyqt4 pyqt5-dev-tools \
+libbluetooth-dev libspnav-dev pyqt4-dev-tools libcwiid-dev \
+cmake gcc g++ qt4-qmake libqt4-dev libusb-dev libftdi-dev \
+python-defusedxml \
+ros-melodic-octomap-msgs ros-melodic-joy ros-melodic-geodesy ros-melodic-octomap-ros         \
+ros-melodic-control-toolbox ros-melodic-pluginlib ros-melodic-trajectory-msgs ros-melodic-control-msgs	       \
+ros-melodic-std-srvs ros-melodic-nodelet ros-melodic-urdf ros-melodic-rviz		       \
+ros-melodic-kdl-conversions ros-melodic-eigen-conversions ros-melodic-tf2-sensor-msgs     \
+ros-melodic-pcl-ros ros-melodic-navigation ros-melodic-sophus \
+ros-melodic-ros-control ros-melodic-ros-controllers ros-melodic-roslint \
+ros-melodic-robot-state-publisher ros-melodic-pcl-ros ros-melodic-tf-conversions \
+python-catkin-tools \
+ros-melodic-joint-state-publisher-gui \
+libeigen3-dev \
+ros-melodic-grid-map ros-melodic-tf2-sensor-msgs \
+ros-melodic-navigation ros-melodic-ar-track-alvar
+```
+
+and with pip
+```
+sudo python -m pip install gym
+```
 
 
 ###  3. Helpful modifications
