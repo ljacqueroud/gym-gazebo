@@ -19,7 +19,7 @@ class ConvBlock(nn.Module):
     """
 
     def __init__(self, C_in, C_out, k=5, dilation=1, stride=1):
-        super().__init__()
+        super(ConvBlock, self).__init__()
         self.network = nn.Sequential(
                 nn.Conv1d(C_in, C_out, k, dilation = dilation, stride = stride),
                 nn.ReLU(),
@@ -44,7 +44,7 @@ class LinBlock(nn.Module):
     """
 
     def __init__(self, N_in, N_out):
-        super().__init__()
+        super(LinBlock, self).__init__()
         self.network = nn.Sequential(
                 nn.Linear(N_in, N_out),
                 nn.Tanh(),                  # could use either Tanh or ReLU
@@ -59,7 +59,7 @@ class LinBlock(nn.Module):
 class Model(nn.Module):
 
     def __init__(self, N_channels, N_output, N_steps, N_y):
-        super().__init__()
+        super(Model, self).__init__()
 
         self.convs = nn.Sequential(
                 ConvBlock(C_in = N_channels, C_out = N_channels),

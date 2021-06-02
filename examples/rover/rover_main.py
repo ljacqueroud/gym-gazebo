@@ -86,10 +86,14 @@ if __name__ == '__main__':
         while True:
             steps += 1
 
+            # convert state to correct device
+            state[0] = state[0].to(device)
+            state[1] = state[1].to(device)
+
             # Pick an action based on the current state
             action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
             print("action probability: {}".format(action_prob[:]))
-            action = np.random.choice(action_array, p=action_prob.data.numpy())
+            action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
             print("action chosen: {}".format(action))
 
             #print("path: {}".format(env.get_path()))
@@ -116,7 +120,7 @@ if __name__ == '__main__':
         reward_batch = torch.Tensor([r for (s1,s2,a,r,n) in transitions])#.flip(dims=(0,))
         sensor_state_batch = torch.cat([s1 for (s1,s2,a,r,n) in transitions])
         path_state_batch = torch.cat([s2 for (s1,s2,a,r,n) in transitions])
-        action_batch = torch.Tensor([a for (s1,s2,a,r,n) in transitions])
+        action_batch = torch.Tensor([a for (s1,s2,a,r,n) in transitions]).to(device)
 
         # compute expected reward (= at each step, the reward that it gets after that step)
         batch_Gvals = []
@@ -126,7 +130,7 @@ if __name__ == '__main__':
                  new_Gval = new_Gval + reward_batch[j].numpy()
             #new_Gval = new_Gval + reward_batch[i].numpy()
             batch_Gvals.append(new_Gval)
-        expected_returns_batch = torch.FloatTensor(batch_Gvals)
+        expected_returns_batch = torch.FloatTensor(batch_Gvals) if device==torch.device('cpu') else torch.cuda.FloatTensor(batch_Gvals)
         expected_returns_batch -= expected_returns_batch.min()
         expected_returns_batch *= expected_returns_batch.max()
 
