@@ -14,42 +14,33 @@
   
 ### 2. Build packages
 
-Here is a list of all packages to install:\
-`sudo apt install ros-melodic-desktop-full python-pip python-vcstool python-pyqt4 pyqt5-dev-tools libbluetooth-dev libspnav-dev pyqt4-dev-tools libcwiid-dev cmake gcc g++ qt4-qmake libqt4-dev libusb-dev libftdi-dev python-defusedxml \
-ros-melodic-octomap-msgs        \
-ros-melodic-joy                 \
-ros-melodic-geodesy             \
-ros-melodic-octomap-ros         \
-ros-melodic-control-toolbox     \
-ros-melodic-pluginlib	       \
-ros-melodic-trajectory-msgs     \
-ros-melodic-control-msgs	       \
-ros-melodic-std-srvs 	       \
-ros-melodic-nodelet	       \
-ros-melodic-urdf		       \
-ros-melodic-rviz		       \
-ros-melodic-kdl-conversions     \
-ros-melodic-eigen-conversions   \
-ros-melodic-tf2-sensor-msgs     \
-ros-melodic-pcl-ros \
-ros-melodic-navigation \
-ros-melodic-sophus \
-ros-melodic-ros-control \
-ros-melodic-ros-controllers \
-ros-melodic-roslint \
-ros-melodic-robot-state-publisher \
-ros-melodic-pcl-ros \
-ros-melodic-tf-conversions \
+Here is a list of all packages to install:
+```
+sudo apt install \
+ros-melodic-desktop-full \
+python-pip \
+python3-vcstool python3-pyqt4 pyqt5-dev-tools \
+libbluetooth-dev libspnav-dev pyqt4-dev-tools libcwiid-dev \
+cmake gcc g++ qt4-qmake libqt4-dev libusb-dev libftdi-dev \
+python-defusedxml \
+ros-melodic-octomap-msgs ros-melodic-joy ros-melodic-geodesy ros-melodic-octomap-ros         \
+ros-melodic-control-toolbox ros-melodic-pluginlib ros-melodic-trajectory-msgs ros-melodic-control-msgs	       \
+ros-melodic-std-srvs ros-melodic-nodelet ros-melodic-urdf ros-melodic-rviz		       \
+ros-melodic-kdl-conversions ros-melodic-eigen-conversions ros-melodic-tf2-sensor-msgs     \
+ros-melodic-pcl-ros ros-melodic-navigation ros-melodic-sophus \
+ros-melodic-ros-control ros-melodic-ros-controllers ros-melodic-roslint \
+ros-melodic-robot-state-publisher ros-melodic-pcl-ros ros-melodic-tf-conversions \
 python-catkin-tools \
 ros-melodic-joint-state-publisher-gui \
 libeigen3-dev \
-ros-melodic-grid-map \
-ros-melodic-tf2-sensor-msgs \
-ros-melodic-navigation \
-ros-melodic-ar-track-alvar`
+ros-melodic-grid-map ros-melodic-tf2-sensor-msgs \
+ros-melodic-navigation ros-melodic-ar-track-alvar
+```
 
 and with pip
-`sudo pip install gym`
+```
+sudo python -m pip install gym
+```
 
 
 ###  3. Helpful modifications
