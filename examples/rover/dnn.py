@@ -47,7 +47,7 @@ class LinBlock(nn.Module):
         super(LinBlock, self).__init__()
         self.network = nn.Sequential(
                 nn.Linear(N_in, N_out),
-                nn.Tanh(),                  # could use either Tanh or ReLU
+                nn.ReLU(),                  # could use either Tanh or ReLU
                 #nn.BatchNorm1d()
                 )
 
@@ -78,16 +78,26 @@ class Model(nn.Module):
                 nn.Softmax(1),                   # try with and without softmax
                 )
 
+        self.fc_path = nn.Sequential(
+                LinBlock(N_in = N_y, N_out = 32),
+                LinBlock(N_in = 32, N_out = 32),
+                LinBlock(N_in = 32, N_out = 32),
+                LinBlock(N_in = 32, N_out = 16),
+                LinBlock(N_in = 16, N_out = 8),
+                nn.Linear(8, N_output),
+                nn.Softmax(1),                   # try with and without softmax
+                )
+
     def forward(self, x, y):
         # 1D convolutions
-        x = self.convs(x)         # encoder pass (convolutions)
+        #x = self.convs(x)         
 
         # reshape x and concatenate with y
-        x = x.view(x.shape[0], -1) 
-        x = torch.cat((x,y), 1)
+        #x = x.view(x.shape[0], -1) 
+        #x = torch.cat((x,y), 1)
 
         # fully connected layers
-        x = self.fc(x)         # decoder pass (fully connected)
+        x = self.fc_path(y)
 
         return x
                 

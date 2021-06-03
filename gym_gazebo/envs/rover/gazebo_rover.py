@@ -6,6 +6,7 @@ import numpy as np
 import collections
 import copy
 import torch
+import matplotlib.pyplot as plt
 
 from gym import utils, spaces
 from gym_gazebo.envs import gazebo_env
@@ -22,6 +23,7 @@ from nav_msgs.msg import Path
 from rosgraph_msgs.msg import Clock
 
 from gym.utils import seeding
+from .utils import *
 
 action_commands = [
         [1,0,0,0],      # forward
@@ -115,6 +117,11 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         return self.N_steps
 
     def get_sensor_state(self):
+        """
+        sensor_state [1,39]:
+        [1, 0:N_params_imu] imu data
+        [1, N_params_imu:] joint data
+        """
         # wait until other processes are done
         while(self.changing_joint_state or self.changing_imu):
             time.sleep(0.01)
@@ -143,14 +150,22 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         return state.unsqueeze(0)                       # final tensor of size [1,39, N_steps]
 
     def get_path_state(self):
+        """
+        path_state [1,N]:
+        [1, 0:N_params_odom]    odom data = pos.x, pos.y, orientation.z
+        [1, N_params_odom:]     path data = [point.x, point.y] repeated N_params_path
+        """
         # wait until other processes are done
         while(self.changing_odom or self.changing_path):
             time.sleep(0.01)
         self.changing_odom = True
         self.changing_path = True
         
-        # save path state from odom and path
-        pos = torch.Tensor([self.odom.position.x, self.odom.position.y, self.odom.orientation.z])
+        # save position from odom
+        yaw = quaternion_to_euler(self.odom.orientation, only_yaw=True)
+        pos = torch.Tensor([self.odom.position.x, self.odom.position.y, yaw])
+
+        # save path
         path_pos = []
         for pose in self.path.poses[:self.N_params_path]:  # save first N_params_path from path
             path_pos.append([pose.pose.position.x, pose.pose.position.y])
@@ -160,7 +175,11 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             for _ in range(self.N_params_path - len(path_pos)):
                 path_pos.append(path_pos[-1])
         path_pos = torch.Tensor(path_pos)
+
+        # concatenate position and path
         path_state = torch.cat((pos.view(-1), path_pos.view(-1)), 0)        # concatenate in [N]
+
+        print("current pos: {}".format(pos))
 
         # set flags
         self.changing_odom = False
@@ -210,6 +229,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.initialize_path()
         self.initialize_clock()
         self.generate_new_goal()
+        self.path_to_follow_array = []
+        self.path_followed = []
         self.steps_done = 0
 
     def generate_new_goal(self, goal_point=None):
@@ -268,13 +289,14 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         path_dist = np.zeros(self.N_params_path)
         for i in range(self.N_params_path):
             path_dist[i] = np.linalg.norm(path_state[self.N_params_odom + i*2 : self.N_params_odom + (i+1)*2] - self.last_pos[:2])
-        closest_points_idx = path_dist.argsort()[:2]
-        closest_points_idx.sort()
-        closest_points = path_state[[closest_points_idx[0],closest_points_idx[0]+1,closest_points_idx[1], closest_points_idx[1]+1]]
+        closest_points_idx = path_dist.argsort()[:2]        # get closest two points
+        closest_points_idx.sort()                           # sort them to match path order
+        closest_points_path_idx = self.N_params_odom + closest_points_idx*2     # convert to path_state idx
+        closest_points = np.array([path_state[closest_points_path_idx[0]:closest_points_path_idx[0]+2],path_state[closest_points_path_idx[1]: closest_points_path_idx[1]+2]])       # save to numpy
 
         # find parallel and orthogonal projections of path traveled on path
         path_traveled = current_pos[:2] - self.last_pos[:2]
-        path_real = closest_points[2:] - closest_points[:2]
+        path_real = closest_points[1] - closest_points[0]
         if np.linalg.norm(path_real) < 1e-10:       # if the rover didn't move
             proj_parallel = 0
             proj_orthogonal = 0
@@ -282,8 +304,23 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             proj_parallel = np.dot(path_traveled, path_real) / np.linalg.norm(path_real)
             proj_orthogonal = np.sqrt(np.dot(path_traveled,path_traveled) - proj_parallel**2)
 
+        # find orientation alignment
+        current_yaw = current_pos[2]
+        last_yaw = self.last_pos[2]
+        path_yaw = np.arctan2(path_real[1], path_real[0])
+        current_yaw_distance = np.abs(path_yaw - current_yaw)
+        if current_yaw_distance > np.pi:
+            current_yaw_distance = 2*np.pi - current_yaw_distance
+        last_yaw_distance = np.abs(path_yaw - last_yaw)
+        if last_yaw_distance > np.pi:
+            last_yaw_distance = 2*np.pi - last_yaw_distance 
+        yaw_diff = last_yaw_distance - current_yaw_distance
+
         # get reward
-        reward = proj_parallel - proj_orthogonal
+        reward = proj_parallel - proj_orthogonal + yaw_diff
+        #reward = 10 if action==0 else 0
+        #print("rewards\nproj_parallel: {}\nproj_orthogonal: {} \nyaw_diff: {}".format(proj_parallel,proj_orthogonal,yaw_diff))
+        #print("reward obtained: {}".format(reward))
 
         return reward
 
@@ -333,11 +370,14 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         path_state = self.get_path_state()
         done = self.get_done()
 
+        # save path info
+        self.path_followed.append(path_state[0,0:2].detach().cpu().tolist())
+
         # compute reward
         reward = self.compute_reward(done, action, path_state)
 
         # update last position
-        self.last_pos = path_state.squeeze(0)[:self.N_params_odom].numpy()
+        self.last_pos = path_state.squeeze(0)[:self.N_params_odom].detach().cpu().numpy()
 
         return [sensor_state, path_state], reward, done, {}
 
@@ -504,7 +544,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # save relevant info
         self.odom.position.x = odometry.pose.pose.position.x
         self.odom.position.y = odometry.pose.pose.position.y
-        self.odom.orientation.z = odometry.pose.pose.orientation.z
+        self.odom.orientation = odometry.pose.pose.orientation
 
         # set flag
         self.changing_odom = False
@@ -528,6 +568,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # save relevant info
         self.path = path
+        self.path_to_follow_array.append(path)
 
         # set flag
         self.changing_path = False
@@ -543,4 +584,31 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.changing_clock = True
         self.clock = clock
         self.changing_clock = False
+
+
+
+    #################### DEBUG + PLOT FUNCTIONS ########################
+
+    def plot_path(self, fig=None, ax=None):
+        if not fig or not ax:
+            fig, ax = plt.subplots()
+
+        ax.clear()
+
+        # plot paths saved (path supposed to follow)
+        for i, path in enumerate(self.path_to_follow_array):
+            path_points = []
+            for pose in path.poses:
+                path_points.append([pose.pose.position.x,pose.pose.position.y])
+            path_points = np.array(path_points)
+            ax.plot(path_points[:,0], path_points[:,1], label="path "+str(i))
+
+        # plot path followed
+        self.path_followed = np.array(self.path_followed)
+        ax.plot(self.path_followed[:,0], self.path_followed[:,1], label="path followed")
+
+        ax.legend()
+        plt.show()
+        
+
 

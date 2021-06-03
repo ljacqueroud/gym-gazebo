@@ -10,6 +10,7 @@ import liveplot
 import torch
 import torch.nn as nn
 from torch import optim
+import matplotlib.pyplot as plt
 
 import dnn
 
@@ -60,7 +61,7 @@ if __name__ == '__main__':
 
     # model parameters
     total_episodes = 10000
-    max_episode_length = 50
+    max_episode_length = 200
     env.set_max_steps(max_episode_length)
     highest_reward = 0
 
@@ -70,6 +71,9 @@ if __name__ == '__main__':
 
     score = []
     start_time = time.time()
+
+    # figure for plotting
+    #path_fig, path_ax = plt.subplots()
 
     print("============== Starting training loop ===============")
 
@@ -94,6 +98,7 @@ if __name__ == '__main__':
             action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
             print("action probability: {}".format(action_prob[:]))
             action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
+            action = 2
             print("action chosen: {}".format(action))
 
             #print("path: {}".format(env.get_path()))
@@ -111,6 +116,7 @@ if __name__ == '__main__':
             # End episode when done
             if done:
                 last_time_steps = np.append(last_time_steps, [int(steps)])
+                env.plot_path()
                 break
 
         # save reward
@@ -126,13 +132,13 @@ if __name__ == '__main__':
         batch_Gvals = []
         for i in range(len(transitions)):
             new_Gval = 0
-            for j in range(i,len(transitions)):
-                 new_Gval = new_Gval + reward_batch[j].numpy()
-            #new_Gval = new_Gval + reward_batch[i].numpy()
+            #for j in range(i,len(transitions)):
+            #     new_Gval = new_Gval + reward_batch[j].numpy()
+            new_Gval = new_Gval + reward_batch[i].numpy()
             batch_Gvals.append(new_Gval)
         expected_returns_batch = torch.FloatTensor(batch_Gvals) if device==torch.device('cpu') else torch.cuda.FloatTensor(batch_Gvals)
-        expected_returns_batch -= expected_returns_batch.min()
-        expected_returns_batch *= expected_returns_batch.max()
+        #expected_returns_batch -= expected_returns_batch.min()
+        expected_returns_batch /= expected_returns_batch.abs().max()
 
         # get the model output
         pred_batch = model(sensor_state_batch, path_state_batch)
