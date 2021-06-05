@@ -30,7 +30,7 @@ action_commands = [
         [-1,0,0,0],     # backward
         [0,0,0,1],      # left
         [0,0,0,-1],     # right
-        [0,0,0,0],      # stop
+        #[0,0,0,0],      # stop
     ]
 
 joint_state_datatypes = ["none", "chassis", "wheels"]
@@ -81,6 +81,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.lin_speed = 5
         self.turn_speed = 7
         self.sim_time_step = 0.1
+        self.path_found = False
 
         # ros parameters
         self.new_joint_state = JointState()
@@ -199,6 +200,20 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
     #################### ENVIRONMENT FUNCTIONS ########################
 
+    def pause_sim(self):
+        rospy.wait_for_service('/gazebo/pause_physics')
+        try:
+            self.pause()
+        except (rospy.ServiceException) as e:
+            print ("/gazebo/pause_physics service call failed")
+
+    def unpause_sim(self):
+        rospy.wait_for_service('/gazebo/unpause_physics')
+        try:
+            self.unpause()
+        except (rospy.ServiceException) as e:
+            print ("/gazebo/unpause_physics service call failed")
+
     def initialize_sensor_state(self):
         """ sets imu and joint_states to zero
         """
@@ -225,13 +240,17 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
     def initiliaze_vars(self):
         self.initialize_sensor_state()
         #self.initialize_vel_cmd()
-        self.initialize_odom()
-        self.initialize_path()
-        self.initialize_clock()
-        self.generate_new_goal()
-        self.path_to_follow_array = []
-        self.path_followed = []
-        self.steps_done = 0
+        self.initialize_odom()          # odom data (pos and orientation)
+        self.initialize_path()          # path data
+        self.initialize_clock()         # clock
+        goal = Point()
+        goal.x = 5
+        goal.y = 0
+        self.generate_new_goal(goal)    # generate new random goal point at each reset
+        self.path_to_follow_array = []  # path array for plotting (path to follow)
+        self.path_followed = []         # path array for plotting (path followed)
+        self.path_found = False         # bool to indicate when path is found
+        self.steps_done = 0             # counter of steps
 
     def generate_new_goal(self, goal_point=None):
         """ generate goal_point randomly (if not given) and publish
@@ -257,6 +276,21 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         return vel_cmd
 
+    def wait_path_found(self):
+        print("Waiting for a path to be generated")
+
+        # unpause sim
+        self.unpause_sim()
+
+        # wait until path found
+        while not self.path_found:
+            self.wait_gazebo_sim()
+
+        # pause sim
+        self.pause_sim()
+
+        print("path found!")
+
     def wait_gazebo_sim(self, wait_time=0.2):
         """ Wait for wait_time using the simulation time
         """
@@ -271,6 +305,19 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             if (new_time - start_time) >= wait_time:
                 break
             time.sleep(0.05)
+
+    def stop(self):
+        """ Stop the rover. Called at the end of each episode
+        """
+        # unpause
+        self.unpause_sim()
+
+        # define command based on action (if action = None: do nothing)
+        vel_cmd = Twist()
+        self.vel_pub.publish(vel_cmd)
+
+        # pause
+        self.pause_sim()
 
 
     def compute_reward(self, done, action, path_state):
@@ -317,9 +364,12 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         yaw_diff = last_yaw_distance - current_yaw_distance
 
         # get reward
-        reward = proj_parallel - proj_orthogonal + yaw_diff
+        k_proj_par = 1
+        k_proj_ort = -1
+        k_yaw = 10
+        reward = k_proj_par*proj_parallel + k_proj_ort*proj_orthogonal + k_yaw*yaw_diff
         #reward = 10 if action==0 else 0
-        #print("rewards\nproj_parallel: {}\nproj_orthogonal: {} \nyaw_diff: {}".format(proj_parallel,proj_orthogonal,yaw_diff))
+        print("rewards\nproj_parallel: {}\nproj_orthogonal: {} \nyaw_diff: {}".format(proj_parallel,proj_orthogonal,yaw_diff))
         #print("reward obtained: {}".format(reward))
 
         return reward
@@ -330,11 +380,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
     def step(self, action):
 
-        rospy.wait_for_service('/gazebo/unpause_physics')
-        try:
-            self.unpause()
-        except (rospy.ServiceException) as e:
-            print ("/gazebo/unpause_physics service call failed")
+        self.unpause_sim()
 
         print("step: {}".format(self.steps_done))
         #print("imu data: {}".format(self.imu))
@@ -345,22 +391,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             vel_cmd = self.get_vel_command(action)
             self.vel_pub.publish(vel_cmd)
 
-        #data = None
-        #while data is None:
-        #    try:
-        #        data = rospy.wait_for_message('/scan', LaserScan, timeout=5)
-        #    except:
-        #        pass
-
-
         self.wait_gazebo_sim(wait_time = self.sim_time_step)       # wait X seconds in the simulation
 
-        rospy.wait_for_service('/gazebo/pause_physics')
-        try:
-            #resp_pause = pause.call()
-            self.pause()
-        except (rospy.ServiceException) as e:
-            print ("/gazebo/pause_physics service call failed")
+        self.pause_sim()
 
         # update number of steps
         self.steps_done += 1
@@ -369,6 +402,10 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         sensor_state = self.get_sensor_state()
         path_state = self.get_path_state()
         done = self.get_done()
+
+        # if done: stop rover
+        if done:
+            self.stop()
 
         # save path info
         self.path_followed.append(path_state[0,0:2].detach().cpu().tolist())
@@ -392,21 +429,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         except (rospy.ServiceException) as e:
             print ("/gazebo/reset_simulation service call failed")
 
-        # Unpause simulation to make observation
-        #rospy.wait_for_service('/gazebo/unpause_physics')
-        #try:
-        #    #resp_pause = pause.call()
-        #    self.unpause()
-        #except (rospy.ServiceException) as e:
-        #    print ("/gazebo/unpause_physics service call failed")
-
         # Pause simulation
-        rospy.wait_for_service('/gazebo/pause_physics')
-        try:
-            #resp_pause = pause.call()
-            self.pause()
-        except (rospy.ServiceException) as e:
-            print ("/gazebo/pause_physics service call failed")
+        self.pause_sim()
 
         # Reset everything
         self.initiliaze_vars()
@@ -417,6 +441,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # update last position
         self.last_pos = path_state.squeeze(0)[:self.N_params_odom].numpy()
+
+        # wait until a path is found
+        self.wait_path_found()
 
         return [sensor_state, path_state]
 
@@ -572,6 +599,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # set flag
         self.changing_path = False
+
+        # set bool for path found
+        self.path_found = True
 
     def clock_sub_callback(self, clock):
         """

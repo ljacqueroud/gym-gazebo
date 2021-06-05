@@ -17,15 +17,12 @@ import dnn
 from gym_gazebo.envs.rover.gazebo_rover import GazeboRoverEnv
  
 
-def render():
+def render(x, env):
     render_skip = 0 #Skip first X episodes.
     render_interval = 50 #Show render Every Y episodes.
-    render_episodes = 10 #Show Z episodes every rendering.
 
     if (x%render_interval == 0) and (x != 0) and (x > render_skip):
-        env.render()
-    elif ((x-render_episodes)%render_interval == 0) and (x != 0) and (x > render_skip) and (render_episodes < x):
-        env.render(close=True)
+        env.plot_path()
 
 if __name__ == '__main__':
 
@@ -36,7 +33,7 @@ if __name__ == '__main__':
     outdir = '/tmp/gazebo_gym_experiments'
     env = gym.wrappers.Monitor(env, outdir, force=True)
 
-    plotter = liveplot.LivePlot(outdir)
+    #plotter = liveplot.LivePlot(outdir)
 
     last_time_steps = np.ndarray(0)
 
@@ -61,7 +58,7 @@ if __name__ == '__main__':
 
     # model parameters
     total_episodes = 10000
-    max_episode_length = 200
+    max_episode_length = 20
     env.set_max_steps(max_episode_length)
     highest_reward = 0
 
@@ -72,8 +69,8 @@ if __name__ == '__main__':
     score = []
     start_time = time.time()
 
-    # figure for plotting
-    #path_fig, path_ax = plt.subplots()
+    # bool for plotting
+    plotting = True
 
     print("============== Starting training loop ===============")
 
@@ -98,7 +95,6 @@ if __name__ == '__main__':
             action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
             print("action probability: {}".format(action_prob[:]))
             action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
-            action = 2
             print("action chosen: {}".format(action))
 
             #print("path: {}".format(env.get_path()))
@@ -116,7 +112,6 @@ if __name__ == '__main__':
             # End episode when done
             if done:
                 last_time_steps = np.append(last_time_steps, [int(steps)])
-                env.plot_path()
                 break
 
         # save reward
@@ -155,6 +150,9 @@ if __name__ == '__main__':
         m, s = divmod(int(time.time() - start_time), 60)
         h, m = divmod(m, 60)
         print("Episode {}\tScore: {:.2f}\tTime: {}:{}:{}".format(x+1, score[-1],h,m,s))
+
+        # render plots
+        render(x,env)
 
     #Github table content
     print("\n|"+str(total_episodes)+"|"+str(highest_reward)+"| PICTURE |")

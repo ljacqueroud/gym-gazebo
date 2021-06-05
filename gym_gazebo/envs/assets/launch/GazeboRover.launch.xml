@@ -1,6 +1,7 @@
 <launch>
   <!-- Arguments -->
-  <arg name="world_file"  default="$(find rover_description)/worlds/mars.world"/>
+  <!-- worlds: mars, mars_flat, mars_AR -->
+  <arg name="world_file"  default="$(find rover_description)/worlds/mars_flat.world"/>
   <arg name="urdf_file"  value="$(find rover_description)/urdf/Rover_URDF_V6.urdf.xacro"/>
   <arg name="gui" default="true"/>
 
