@@ -24,6 +24,7 @@ class ConvBlock(nn.Module):
                 nn.Conv1d(C_in, C_out, k, dilation = dilation, stride = stride),
                 nn.ReLU(),
                 #nn.BatchNorm1d(num_features = C_out),
+                #nn.Dropout(0.4)
                 )
 
     def forward(self, x):
@@ -48,7 +49,8 @@ class LinBlock(nn.Module):
         self.network = nn.Sequential(
                 nn.Linear(N_in, N_out),
                 nn.ReLU(),                  # could use either Tanh or ReLU
-                #nn.BatchNorm1d()
+                nn.LayerNorm(normalized_shape = N_out),
+                #nn.Dropout(0.2),
                 )
 
     def forward(self, x):
@@ -80,8 +82,8 @@ class Model(nn.Module):
 
         self.fc_path = nn.Sequential(
                 LinBlock(N_in = N_y, N_out = 32),
-                LinBlock(N_in = 32, N_out = 32),
-                LinBlock(N_in = 32, N_out = 32),
+                #LinBlock(N_in = 32, N_out = 32),
+                #LinBlock(N_in = 32, N_out = 32),
                 LinBlock(N_in = 32, N_out = 16),
                 LinBlock(N_in = 16, N_out = 8),
                 nn.Linear(8, N_output),
@@ -97,6 +99,9 @@ class Model(nn.Module):
         #x = torch.cat((x,y), 1)
 
         # fully connected layers
+        #x = self.fc(x)
+
+        # fully connected layers 
         x = self.fc_path(y)
 
         return x

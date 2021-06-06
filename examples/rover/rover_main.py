@@ -17,14 +17,19 @@ import dnn
 from gym_gazebo.envs.rover.gazebo_rover import GazeboRoverEnv
  
 
-def render(x, env):
+def render(x, env, plotting, saving):
     render_skip = 0 #Skip first X episodes.
-    render_interval = 50 #Show render Every Y episodes.
+    render_interval = 5 #Show render Every Y episodes.
 
-    if (x%render_interval == 0) and (x != 0) and (x > render_skip):
-        env.plot_path()
+    if plotting or saving:
+        if (x%render_interval == 0) and (x >= render_skip):
+            env.plot_path(x, plotting=plotting, saving=saving)
 
 if __name__ == '__main__':
+
+    # parameters for plotting/saving the plots
+    plotting = False
+    saving = True
 
     # setup gym environment
     print("============== Setting up gym environment ===============")
@@ -58,7 +63,7 @@ if __name__ == '__main__':
 
     # model parameters
     total_episodes = 10000
-    max_episode_length = 20
+    max_episode_length = 70
     env.set_max_steps(max_episode_length)
     highest_reward = 0
 
@@ -68,9 +73,6 @@ if __name__ == '__main__':
 
     score = []
     start_time = time.time()
-
-    # bool for plotting
-    plotting = True
 
     print("============== Starting training loop ===============")
 
@@ -91,9 +93,11 @@ if __name__ == '__main__':
             state[0] = state[0].to(device)
             state[1] = state[1].to(device)
 
-            # Pick an action based on the current state
+            # get action probabilities from network output
             action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
             print("action probability: {}".format(action_prob[:]))
+
+            # Pick an action based on the current state
             action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
             print("action chosen: {}".format(action))
 
@@ -106,6 +110,8 @@ if __name__ == '__main__':
             transitions.append((state[0], state[1], action, reward, steps))
             cumulated_reward += reward
             state = next_state
+
+            print("current reward: {}, cumulated reward: {}".format(reward, cumulated_reward))
 
             env._flush(force=True)
 
@@ -149,10 +155,10 @@ if __name__ == '__main__':
 
         m, s = divmod(int(time.time() - start_time), 60)
         h, m = divmod(m, 60)
-        print("Episode {}\tScore: {:.2f}\tTime: {}:{}:{}".format(x+1, score[-1],h,m,s))
+        print("Episode {}\tScore: {:.2f}\tTime: {}:{}:{}".format(x, score[-1],h,m,s))
 
         # render plots
-        render(x,env)
+        render(x,env, plotting, saving)
 
     #Github table content
     print("\n|"+str(total_episodes)+"|"+str(highest_reward)+"| PICTURE |")
