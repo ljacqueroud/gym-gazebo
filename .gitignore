@@ -47,3 +47,6 @@ mav.tlog.raw
 mav.parm
 terrain/
 Theano/
+
+# Training plots
+plots/

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import dnn
 
-from gym_gazebo.envs.rover.gazebo_rover import GazeboRoverEnv
+from gym_gazebo.envs.rover.rover_gazebo_env import GazeboRoverEnv
  
 
 def render(x, env, plotting, saving):
@@ -61,15 +61,19 @@ if __name__ == '__main__':
     print("Device: ", device)
     model.to(device)
 
-    # model parameters
+    # training parameters
     total_episodes = 10000
-    max_episode_length = 70
+    max_episode_length = 60
     env.set_max_steps(max_episode_length)
     highest_reward = 0
 
     lr = 2e-2
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr = lr)
+
+    p_random_action = 0.2           # probability of discard model output and picking at random
+    p_random_action_eps = 0.96      # epsilon reduction of the random probability after each episode
+                                    # after 50 eps: p_random_action = 0.1*0.96^50 = 0.0130
 
     score = []
     start_time = time.time()
@@ -95,11 +99,15 @@ if __name__ == '__main__':
 
             # get action probabilities from network output
             action_prob = model(state[0], state[1]).squeeze(0)       # get action [1,N] and remove dim 0 [N,] 
-            print("action probability: {}".format(action_prob[:]))
+            print("action probability: {} with random action prob: {}".format(action_prob[:],p_random_action))
 
             # Pick an action based on the current state
-            action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
-            print("action chosen: {}".format(action))
+            if np.random.random_sample() < p_random_action:
+                action = np.random.randint(0, N_actions)
+                print("random action chosen: {}".format(action))
+            else:
+                action = np.random.choice(action_array, p = (action_prob.data.numpy() if device == torch.device('cpu') else action_prob.cpu().data.numpy()))
+                print("action chosen: {}".format(action))
 
             #print("path: {}".format(env.get_path()))
             #print("odom: {}".format(env.get_odom()))
@@ -111,9 +119,12 @@ if __name__ == '__main__':
             cumulated_reward += reward
             state = next_state
 
-            print("current reward: {}, cumulated reward: {}".format(reward, cumulated_reward))
+            #print("current reward: {}, cumulated reward: {}".format(reward, cumulated_reward))
 
             env._flush(force=True)
+
+            # update random action probability
+            p_random_action *= p_random_action_eps
 
             # End episode when done
             if done:

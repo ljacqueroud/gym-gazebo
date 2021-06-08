@@ -71,7 +71,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.N_params_joint_state = 29              # number of joint state data
         self.N_params_sensor_state = self.N_params_imu + self.N_params_joint_state 
         self.N_params_odom = 3                      # number of odom data
-        self.N_params_path = 5                      # number of path poses to keep
+        self.N_params_path = 10                     # number of path poses to keep
         self.N_params_path_state = self.N_params_odom + self.N_params_path*2
         self.N_actions = len(action_commands)       # number of action commands
         self.N_steps = 30       # number of time steps to keep in memory for network input
@@ -79,9 +79,10 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # simulation parameters
         self.lin_speed = 5
-        self.turn_speed = 7
+        self.turn_speed = 10
         self.sim_time_step = 0.1
         self.path_found = False
+        self.initial_path = None            # used for initialization of path !!! only works when goal point is always the same !!!
 
         # ros parameters
         self.new_joint_state = JointState()
@@ -119,9 +120,9 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
     def get_sensor_state(self):
         """
-        sensor_state [1,39]:
-        [1, 0:N_params_imu] imu data
-        [1, N_params_imu:] joint data
+        sensor_state of size [1,39]:
+        [0, 0:N_params_imu] imu data
+        [0, N_params_imu:] joint data
         """
         # wait until other processes are done
         while(self.changing_joint_state or self.changing_imu):
@@ -232,25 +233,32 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.last_pos = np.zeros(self.N_params_odom)
 
     def initialize_path(self):
-        self.path = Path()
+        """ init path with saved first path if it exists. This path is generated from (0,0) to the goal point and therefore only works if the goal point stays the same between resets
+        """
+        if self.initial_path:
+            self.path = self.initial_path
+            self.path_to_follow_array.append(self.path)
+        else:
+            self.path = Path()
 
     def initialize_clock(self):
         self.clock = Clock()
 
     def initiliaze_vars(self):
-        self.initialize_sensor_state()
+        self.path_to_follow_array = []  # path array for plotting (paths to follow)
+        self.path_followed = []         # path for plotting (path followed)
+        self.path_found = False         # bool to indicate when path is found
+        self.steps_done = 0             # counter of steps
+
+        self.initialize_sensor_state()  # sensor data (IMU + joints)
         #self.initialize_vel_cmd()
         self.initialize_odom()          # odom data (pos and orientation)
         self.initialize_path()          # path data
         self.initialize_clock()         # clock
         goal = Point()
-        goal.x = 5
-        goal.y = 0
-        self.generate_new_goal(goal)    # generate new random goal point at each reset
-        self.path_to_follow_array = []  # path array for plotting (path to follow)
-        self.path_followed = []         # path array for plotting (path followed)
-        self.path_found = False         # bool to indicate when path is found
-        self.steps_done = 0             # counter of steps
+        goal.x = 3
+        goal.y = 1.5
+        self.generate_new_goal(goal)    # generate new goal point at each reset
 
     def generate_new_goal(self, goal_point=None):
         """ generate goal_point randomly (if not given) and publish
@@ -282,9 +290,10 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         # unpause sim
         self.unpause_sim()
 
-        # wait until path found
-        while not self.path_found:
-            self.wait_gazebo_sim()
+        # if there is no initial path saved, wait until path found
+        if not self.initial_path:
+            while not self.path_found:
+                self.wait_gazebo_sim()
 
         # pause sim
         self.pause_sim()
@@ -349,7 +358,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             proj_orthogonal = 0
         else:
             proj_parallel = np.dot(path_traveled, path_real) / np.linalg.norm(path_real)
-            proj_orthogonal = np.sqrt(np.dot(path_traveled,path_traveled) - proj_parallel**2)
+            proj_orthogonal = np.sqrt(np.abs(np.dot(path_traveled,path_traveled) - proj_parallel**2))
 
         # find orientation alignment
         current_yaw = current_pos[2]
@@ -365,11 +374,11 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         # get reward
         k_proj_par = 1
-        k_proj_ort = -1
-        k_yaw = 10
+        k_proj_ort = -2
+        k_yaw = 5
         reward = k_proj_par*proj_parallel + k_proj_ort*proj_orthogonal + k_yaw*yaw_diff
         #reward = 10 if action==0 else 0
-        print("rewards\nproj_parallel: {}\nproj_orthogonal: {} \nyaw_diff: {}".format(proj_parallel,proj_orthogonal,yaw_diff))
+        print("rewards: {}, {}, {}".format(proj_parallel,proj_orthogonal,yaw_diff))
         #print("reward obtained: {}".format(reward))
 
         return reward
@@ -593,9 +602,15 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             time.sleep(0.01)
         self.changing_path = True
 
-        # save relevant info
-        self.path = path
-        self.path_to_follow_array.append(path)
+        # save first path !!! only works when goal point is always the same !!!
+        # COMMENT THESE LINES IF THE GOAL POINT CHANGES BETWEEN EPISODES
+        if not self.initial_path:
+            self.initial_path = path
+
+        # NORMALLY THESE NEXT LINES ARE NOT IN THE IF STATEMENT
+            # save relevant info
+            self.path = path
+            self.path_to_follow_array.append(path)
 
         # set flag
         self.changing_path = False
@@ -619,10 +634,11 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
     #################### DEBUG + PLOT FUNCTIONS ########################
 
-    def plot_path(self, fig=None, ax=None):
+    def plot_path(self, episode, plotting=True, saving=False, fig=None, ax=None):
         if not fig or not ax:
             fig, ax = plt.subplots()
 
+        # clear previous image
         ax.clear()
 
         # plot paths saved (path supposed to follow)
@@ -631,14 +647,24 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
             for pose in path.poses:
                 path_points.append([pose.pose.position.x,pose.pose.position.y])
             path_points = np.array(path_points)
-            ax.plot(path_points[:,0], path_points[:,1], label="path "+str(i))
+            ax.plot(path_points[:,0], path_points[:,1], label="path generated")
 
         # plot path followed
         self.path_followed = np.array(self.path_followed)
         ax.plot(self.path_followed[:,0], self.path_followed[:,1], label="path followed")
-
+        ax.set_xlabel('x', fontsize=18)
+        ax.set_ylabel('y', fontsize=18)
+        ax.set_title('Episode {}'.format(episode), fontsize=20)
         ax.legend()
-        plt.show()
+
+        # show plot
+        if plotting:
+            plt.show()
+
+        # save plot
+        if saving:
+            save_plot_path = "/home/lorenzo/Documents/epfl/mt_ma4/xplore/git/gym-gazebo/plots/rover/"
+            plt.savefig(save_plot_path + "episode_{:02d}.png".format(episode))
         
 
 
