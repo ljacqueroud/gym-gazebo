@@ -88,7 +88,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.new_joint_state = JointState()
         self.new_joint_state_datatype = "none"
 
-        # parameters to keep in memory
+        # parameters to keep in memory initialization
         self.imu = collections.deque(maxlen=self.N_steps)
         self.joint_state = collections.deque(maxlen=self.N_steps)
 
@@ -226,6 +226,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.joint_counter=0
 
 #    def initialize_vel_cmd(self):
+#        """ DEPRECATED: was used with original TCN
+#        """
 #        self.path_planner_cmd = self.get_vel_command(self.N_actions-1)     # init with stop command
 
     def initialize_odom(self):
@@ -256,8 +258,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.initialize_path()          # path data
         self.initialize_clock()         # clock
         goal = Point()
-        goal.x = 3
-        goal.y = 1.5
+        goal.x = 1
+        goal.y = 2
         self.generate_new_goal(goal)    # generate new goal point at each reset
 
     def generate_new_goal(self, goal_point=None):
@@ -271,7 +273,6 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         self.goal_pub.publish(goal_point)
 
     def get_vel_command(self, action):
-        #if action > 0:      # action [1:N_actions]
         vel_cmd = Twist()
         vel_cmd.linear.x = action_commands[action][0] * self.lin_speed
         vel_cmd.linear.y = action_commands[action][1] * self.lin_speed
@@ -279,8 +280,6 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         vel_cmd.angular.x = 0
         vel_cmd.angular.y = 0
         vel_cmd.angular.z = action_commands[action][3] * self.turn_speed
-        #else:           # action 0
-        #    vel_cmd = self.path_planner_cmd
 
         return vel_cmd
 
@@ -378,7 +377,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         k_yaw = 5
         reward = k_proj_par*proj_parallel + k_proj_ort*proj_orthogonal + k_yaw*yaw_diff
         #reward = 10 if action==0 else 0
-        print("rewards: {}, {}, {}".format(proj_parallel,proj_orthogonal,yaw_diff))
+        print("rewards: {:0.5f}, {:0.5f}, {:0.5f}".format(proj_parallel,proj_orthogonal,yaw_diff))
         #print("reward obtained: {}".format(reward))
 
         return reward
@@ -461,6 +460,8 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
     #################### ROS CALLBACK FUNCTIONS ########################
 
 #    def vel_sub_callback(self, twist):
+#        """ DEPRECATED: was used with the original TCN to get path follower command
+#        """
 #        self.path_planner_cmd = twist
 #        print("================================== GOT VEL FROM PATH PLANNER: {}".format(twist))
 
@@ -483,7 +484,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
 
         self.imu_counter+=1
 
-        # save only interesting data (ignore covariances)
+        # save only useful data (ignore covariances)
         new_imu = torch.cat((
             torch.Tensor([imu.orientation.x,imu.orientation.y,imu.orientation.z,imu.orientation.w]),
             torch.Tensor([imu.linear_acceleration.x,imu.linear_acceleration.y,imu.linear_acceleration.z]),
@@ -655,6 +656,7 @@ class GazeboRoverEnv(gazebo_env.GazeboEnv):
         ax.set_xlabel('x', fontsize=18)
         ax.set_ylabel('y', fontsize=18)
         ax.set_title('Episode {}'.format(episode), fontsize=20)
+        ax.axis('equal')
         ax.legend()
 
         # show plot
