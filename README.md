@@ -1,20 +1,43 @@
-# My env
+# Blind Local Planner
+
+In the scope of a rover competition, the Xplore association at EPFL is partipating and building a rover. In this scope, one of the tasks that the rover has to complete, is to move autonomosly to a given landmark inside an arena with martian-like terrain. This project works in particular on a path follower and obstacle avoidance method implemented in a simulation.
+
+![](imgs/gazebo_sim.png)
+
+The main repository for the work of the navigation team on the rover can be found [here](https://github.com/EPFLXplore/main_NAV_ws).\
+This repository only contains the part needed for the implementation of the path follower with obstacle avoidance and is based on the toolkit **OpenAI Gym** adapted in order to work with the **Gazebo** simulator and **ROS**. The code works in conjunction with a [workspace](https://github.com/ljacqueroud/rover_catkin_ws), which contains all the ROS packages for the simulation itself.
+
+
+# The path follower
+
+The idea of this project is to not rely only on a Lidar present on the rover for the navigation, and therefore to use the internal sensors to detect and react to unexpected problems, such as smaller obstacles that weren't detected by the Lidar. In order to do that, a reflex based approach is implemented through a deep neural network. The objective is for the network to learn in simulation, how to react to small rocks/holes in order to reach a given goal in the optimal way, and later to transfer it on the real rover.
+
+The neural network is a **TCN** (Temporal Convolutional Network) followed by a fully connected network. The architecture is as follows:
+
+![](imgs/dnn1.png)
+
+The inputs are the data from an IMU, potentiometers which give the joint positions and wheel velocities from wheel encoders. As it needs to learn if the rover is stuck, a few seconds of data are given by taking the last _N_ time steps for each of them. The output are a predefined set of commands that the rover can execute (such as go forward, turn left, ...).
+
+A path is automatically computed, but in order to reach the goal a path follower has to be also implemented. Here the possibility of incorporating the path follower in the neural netowrk is explored. In order to do that, the path information and the rover position are given as input to the fully connected part:
+
+![](imgs/dnn2.png)
+
+In order to test if a path follower can be implemented with a fully connected network, the following smaller network was tested:
+
+![](imgs/dnn3.png)
+
+With a fixed path (giving a constant goal at each training session), the network is able to learn to follow it as can be seen in the following plots
+
+![](imgs/results.png)
+
+The next steps in this project are to test the fully connected network on a general path, by randomizing the goal at each iteration, and afterwards to test the complete network presented before with the TCN part in order to achieve obstacle avoidance through reflexes.
+
+
+# Technical details
 
 ### 1. Setup
 
-- install all packages listed in [gym_gazebo](https://github.com/ljacqueroud/gym-gazebo/blob/master/INSTALL.md) and [xplore](https://github.com/EPFLXplore/main_NAV_ws) (or check next section)
-- clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
-- `catkin init ; catkin build`
-- add `source catkin_ws/devel/setup.bash` to `.bashrc`
-- clone this repo
-- `cd gym_gazebo`
-- `sudo pip install -e .`
-**WARNING** when using `catkin_make` make sure other workspaces are not sourced!
-
-  
-### 2. Build packages
-
-Here is a list of all packages to install:
+Install the following packages:
 ```
 sudo apt install \
 ros-melodic-desktop-full \
@@ -42,7 +65,34 @@ and with pip
 sudo python -m pip install gym
 ```
 
+- clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
+- go to root of `rover_catkin_ws` (cd `rover_catkin_ws`)
+- `catkin_make`
+- add `source catkin_ws/devel/setup.bash` to `.bashrc` (found in `/home/user`)
+- add `export ROS_MASTER_URI=http://localhost:11311` to `.bashrc`
+- add `export GYM_GAZEBO_WORLDS_PATH=/path_to_this_repo/gym_gazebo/gym_gazebo/envs/assets/worlds` to `.bashrc` (change `path_to_this_repo` with the correct path)
+- clone this repo
+- go to root of this repo (cd `gym_gazebo`)
+- `sudo pip install -e .`
+**WARNING** when using `catkin_make` make sure other workspaces are not sourced!
 
+also it is recommended to add the following alias in the `.bashrc` in order to close all ROS and gazebo processes with the command `killros`:\
+`alias killros='killall -9 rosout roslaunch rosmaster gzserver nodelet robot_state_publisher gzclient'`
+
+
+___
+### 2. Run the code
+
+- cd `examples/rover`
+- `python rover_main.py`
+
+The main files for the training are:
+- `/examples/rover/rover_main.py`: main script containing the training loop
+- `/examples/rover/dnn.py`: file containing the definition of the neural networks
+- `/gym-gazebo/envs/rover/rover_gazebo_env.py`: file containing the environment definition
+
+
+___
 ###  3. Helpful modifications
 
 ##### 3.1 GUI
@@ -84,7 +134,7 @@ In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
 
 In `$ROS_ROOT/config/rosconsole.config` set verbose to `DEBUG`,`INFO`,`WARN`,`ERROR`,`FATAL`
 
-
+___
 ### 4. Helpful Paths
 
 - examples:\
@@ -105,140 +155,8 @@ In `$ROS_ROOT/config/rosconsole.config` set verbose to `DEBUG`,`INFO`,`WARN`,`ER
   `catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
 - world launch:\
   `catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
-___
 
 ___
+### 5. Notes
 
-___
-
-<img src="data/logo.jpg" width=25% align="right" /> [![Build status](https://travis-ci.org/erlerobot/gym-gazebo.svg?branch=master)](https://travis-ci.org/erlerobot/gym-gazebo)
-
-
-**THIS REPOSITORY IS DEPRECATED, REFER TO https://github.com/AcutronicRobotics/gym-gazebo2 FOR THE NEW VERSION.**
-
-# An OpenAI gym extension for using Gazebo known as `gym-gazebo`
-
-<!--[![alt tag](https://travis-ci.org/erlerobot/gym.svg?branch=master)](https://travis-ci.org/erlerobot/gym)-->
-
-This work presents an extension of the initial OpenAI gym for robotics using ROS and Gazebo. A whitepaper about this work is available at https://arxiv.org/abs/1608.05742. Please use the following BibTex entry to cite our work:
-
-```
-@article{zamora2016extending,
-  title={Extending the OpenAI Gym for robotics: a toolkit for reinforcement learning using ROS and Gazebo},
-  author={Zamora, Iker and Lopez, Nestor Gonzalez and Vilches, Victor Mayoral and Cordero, Alejandro Hernandez},
-  journal={arXiv preprint arXiv:1608.05742},
-  year={2016}
-}
-```
-
------
-
-**`gym-gazebo` is a complex piece of software for roboticists that puts together simulation tools, robot middlewares (ROS, ROS 2), machine learning and reinforcement learning techniques. All together to create an environment whereto benchmark and develop behaviors with robots. Setting up `gym-gazebo` appropriately requires relevant familiarity with these tools.**
-
-**Code is available "as it is" and currently it's not supported by any specific organization. Community support is available [here](https://github.com/erlerobot/gym-gazebo/issues). Pull requests and contributions are welcomed.**
-
------
-
-## Table of Contents
-- [Environments](#community-maintained-environments)
-- [Installation](#installation)
-- [Usage](#usage)
-
-
-## Community-maintained environments
-The following are some of the gazebo environments maintained by the community using `gym-gazebo`. If you'd like to contribute and maintain an additional environment, submit a Pull Request with the corresponding addition.
-
-| Name | Middleware | Description | Observation Space | Action Space | Reward range |
-| ---- | ------ | ----------- | ----- | --------- | -------- |
-| ![GazeboCircuit2TurtlebotLidar-v0](imgs/GazeboCircuit2TurtlebotLidar-v0.png)`GazeboCircuit2TurtlebotLidar-v0` | ROS | A simple circuit with straight tracks and 90 degree turns. Highly discretized LIDAR readings are used to train the Turtlebot. Scripts implementing **Q-learning** and **Sarsa** can be found in the _examples_ folder. | | | |
-| ![GazeboCircuitTurtlebotLidar-v0](imgs/GazeboCircuitTurtlebotLidar-v0.png)`GazeboCircuitTurtlebotLidar-v0.png` | ROS | A more complex maze  with high contrast colors between the floor and the walls. Lidar is used as an input to train the robot for its navigation in the environment. | | | TBD |
-| `GazeboMazeErleRoverLidar-v0` | ROS, [APM](https://github.com/erlerobot/ardupilot) | **Deprecated** | | | |
-| `GazeboErleCopterHover-v0` | ROS, [APM](https://github.com/erlerobot/ardupilot) | **Deprecated** | | | |
-
-## Other environments (no support provided for these environments)
-
-The following table compiles a number of other environments that **do not have
-community support**.
-
-| Name | Middleware | Description | Observation Space | Action Space | Reward range |
-| ---- | ------ | ----------- | ----- | --------- | -------- |
-| ![cartpole-v0.png](imgs/cartpole.jpg)`GazeboCartPole-v0` | ROS | | Discrete(4,) | Discrete(2,) | 1) Pole Angle is more than ±12° 2)Cart Position is more than ±2.4 (center of the cart reaches the edge of the display) 3) Episode length is greater than 200 |
-| ![GazeboModularArticulatedArm4DOF-v1.png](imgs/GazeboModularArticulatedArm4DOF-v1.jpg)`GazeboModularArticulatedArm4DOF-v1` | ROS | This environment present a modular articulated arm robot with a two finger gripper at its end pointing towards the workspace of the robot.| Box(10,) | Box(3,) | (-1, 1) [`if rmse<5 mm 1 - rmse else reward=-rmse`]|
-| ![GazeboModularScara4DOF-v3.png](imgs/GazeboModularScara4DOF-v3.png)`GazeboModularScara4DOF-v3` | ROS | This environment present a modular SCARA robot with a range finder at its end pointing towards the workspace of the robot. The goal of this environment is defined to reach the center of the "O" from the "H-ROS" logo within the workspace. This environment compared to `GazeboModularScara3DOF-v2` is not pausing the Gazebo simulation and is tested in algorithms that solve continuous action space (PPO1 and ACKTR from baselines).This environment uses `slowness=1` and matches the delay between actions/observations to this value (slowness). In other words, actions are taken at "1/slowness" rate.| Box(10,) | Box(3,) | (-1, 1) [`if rmse<5 mm 1 - rmse else reward=-rmse`]|
-| ![GazeboModularScara3DOF-v3.png](imgs/GazeboModularScara3DOF-v3.png)`GazeboModularScara3DOF-v3` | ROS | This environment present a modular SCARA robot with a range finder at its end pointing towards the workspace of the robot. The goal of this environment is defined to reach the center of the "O" from the "H-ROS" logo within the workspace. This environment compared to `GazeboModularScara3DOF-v2` is not pausing the Gazebo simulation and is tested in algorithms that solve continuous action space (PPO1 and ACKTR from baselines).This environment uses `slowness=1` and matches the delay between actions/observations to this value (slowness). In other words, actions are taken at "1/slowness" rate.| Box(9,) | Box(3,) | (-1, 1) [`if rmse<5 mm 1 - rmse else reward=-rmse`]|
-| ![GazeboModularScara3DOF-v2.png](imgs/GazeboModularScara3DOF-v2.png)`GazeboModularScara3DOF-v2` | ROS | This environment present a modular SCARA robot with a range finder at its end pointing towards the workspace of the robot. The goal of this environment is defined to reach the center of the "O" from the "H-ROS" logo within the workspace. Reset function is implemented in a way that gives the robot 1 second to reach the "initial position".| Box(9,) | Box(3,) | (0, 1) [1 - rmse] |
-| ![GazeboModularScara3DOF-v1.png](imgs/GazeboModularScara3DOF-v1.png)`GazeboModularScara3DOF-v1` | ROS | **Deprecated** | | | TBD |
-| ![GazeboModularScara3DOF-v0.png](imgs/GazeboModularScara3DOF-v0.png)`GazeboModularScara3DOF-v0` | ROS | **Deprecated** | | | | TBD |
-| ![ariac_pick.jpg](imgs/ariac_pick.jpg)`ARIACPick-v0` | ROS | | | |  |
-
-## Installation
-Refer to [INSTALL.md](INSTALL.md)
-
-## Usage
-
-### Build and install gym-gazebo
-
-In the root directory of the repository:
-
-```bash
-sudo pip install -e .
-```
-
-### Running an environment
-
-- Load the environment variables corresponding to the robot you want to launch. E.g. to load the Turtlebot:
-
-```bash
-cd gym_gazebo/envs/installation
-bash turtlebot_setup.bash
-```
-
-Note: all the setup scripts are available in `gym_gazebo/envs/installation`
-
-- Run any of the examples available in `examples/`. E.g.:
-
-```bash
-cd examples/turtlebot
-python circuit2_turtlebot_lidar_qlearn.py
-```
-
-### Display the simulation
-
-To see what's going on in Gazebo during a simulation, run gazebo client. In order to launch the `gzclient` and be able to connect it to the running `gzserver`:
-1. Open a new terminal.
-2. Source the corresponding setup script, which will update the _GAZEBO_MODEL_PATH_ variable: e.g. `source setup_turtlebot.bash`
-3. Export the _GAZEBO_MASTER_URI_, provided by the [gazebo_env](https://github.com/erlerobot/gym-gazebo/blob/7c63c16532f0d8b9acf73663ba7a53f248021453/gym_gazebo/envs/gazebo_env.py#L33). You will see that variable printed at the beginning of every script execution. e.g. `export GAZEBO_MASTER_URI=http://localhost:13853`
-
-**Note**: This instructions are needed now since `gazebo_env` creates a random port for the GAZEBO_MASTER_URI, which allows to run multiple instances of the simulation at the same time. You can remove the following two lines from the environment if you are not planning to launch multiple instances:
-
-```bash
-os.environ["ROS_MASTER_URI"] = "http://localhost:"+self.port
-os.environ["GAZEBO_MASTER_URI"] = "http://localhost:"+self.port_gazebo
-```
-
-Finally, launch gzclient.
-```bash
-gzclient
-
-```
-
-### Display reward plot
-
-Display a graph showing the current reward history by running the following script:
-
-```bash
-cd examples/utilities
-python display_plot.py
-```
-
-HINT: use `--help` flag for more options.
-
-### Killing background processes
-
-Sometimes, after ending or killing the simulation `gzserver` and `rosmaster` stay on the background, make sure you end them before starting new tests.
-
-We recommend creating an alias to kill those processes.
-
-```bash
-echo "alias killgazebogym='killall -9 rosout roslaunch rosmaster gzserver nodelet robot_state_publisher gzclient'" >> ~/.bashrc
-```
+This repo was forked from the [gym gazebo repo](https://github.com/erlerobot/gym-gazebo). All the examples are kept inside the `examples` folder and can be run if desired. Follow the instructions from that repository in order to do so.
