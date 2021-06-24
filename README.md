@@ -1,6 +1,6 @@
 # Blind Local Planner
 
-In the scope of a rover competition, the Xplore association at EPFL is partipating and building a rover. In this scope, one of the tasks that the rover has to complete, is to move autonomosly to a given landmark inside an arena with martian-like terrain. This project works in particular on a path follower and obstacle avoidance method implemented in a simulation.
+In the scope of a rover competition, the Xplore association at EPFL is participating and building a rover. In this scope, one of the tasks that the rover has to complete, is to move autonomosly to a given landmark inside an arena with martian-like terrain. This project works in particular on a path follower and obstacle avoidance method implemented in a simulation.
 
 ![](imgs/gazebo_sim.png)
 
@@ -32,6 +32,8 @@ With a fixed path (giving a constant goal at each training session), the network
 
 The next steps in this project are to test the fully connected network on a general path, by randomizing the goal at each iteration, and afterwards to test the complete network presented before with the TCN part in order to achieve obstacle avoidance through reflexes.
 
+More details on the project and the implementation can be found in the full report.
+
 
 # Technical details
 
@@ -60,21 +62,21 @@ ros-melodic-grid-map ros-melodic-tf2-sensor-msgs \
 ros-melodic-navigation ros-melodic-ar-track-alvar
 ```
 
-and with pip
+and install the gym package (with pip or your preferred python package manager)
 ```
 sudo python -m pip install gym
 ```
 
-- clone [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
-- go to root of `rover_catkin_ws` (cd `rover_catkin_ws`)
+- clone the [catkin workspace repo](https://github.com/ljacqueroud/rover_catkin_ws)
+- go to root of `rover_catkin_ws` (`cd rover_catkin_ws`)
 - `catkin_make`
 - add `source catkin_ws/devel/setup.bash` to `.bashrc` (found in `/home/user`)
 - add `export ROS_MASTER_URI=http://localhost:11311` to `.bashrc`
 - add `export GYM_GAZEBO_WORLDS_PATH=/path_to_this_repo/gym_gazebo/gym_gazebo/envs/assets/worlds` to `.bashrc` (change `path_to_this_repo` with the correct path)
 - clone this repo
-- go to root of this repo (cd `gym_gazebo`)
-- `sudo pip install -e .`
-**WARNING** when using `catkin_make` make sure other workspaces are not sourced!
+- go to root of this repo (`cd gym_gazebo`)
+- `sudo pip install -e .`\
+**WARNING** when using `catkin_make` make sure other catkin workspaces are not sourced!
 
 also it is recommended to add the following alias in the `.bashrc` in order to close all ROS and gazebo processes with the command `killros`:\
 `alias killros='killall -9 rosout roslaunch rosmaster gzserver nodelet robot_state_publisher gzclient'`
@@ -83,7 +85,7 @@ also it is recommended to add the following alias in the `.bashrc` in order to c
 ___
 ### 2. Run the code
 
-- cd `examples/rover`
+- `cd examples/rover`
 - `python rover_main.py`
 
 The main files for the training are:
@@ -111,17 +113,18 @@ set `<arg name="gui" default="true">`
 
 ##### 3.3 Change world
 
-World file in `gym-gazebo/gym-gazebo/envs/assets/worlds`\
-In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change
+- World file in `catkin_ws/src/rover/rover_description/worlds` (rover world)\
+  or `gym-gazebo/gym-gazebo/envs/assets/worlds` (other worlds)\
+- The world file is launched from its corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`). Inside it change
 `<arg name="world_file"  default="$(env MY_WORLD_PATH)"/>`\
-In world file, link to corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
+- For changing the mesh (for example flat vs hills world), in the world file, link to the corresponding mesh (dae file): `<mesh><uri>file:///path_to_my_world</uri></mesh>`
 
 
 ##### 3.4 Change robot model (URDF)
 
-Urdf file in `catkin_ws/src/rover/rover_description/urdf`\
-or `gym-gazebo/gym_gazebo/envs/assets/urdf`\
-In corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change `<arg name="urdf_file"  default="$(env MY_URDF_PATH)"/>`\
+Urdf file in `catkin_ws/src/rover/rover_description/urdf` (for the rover)\
+or `gym-gazebo/gym_gazebo/envs/assets/urdf` (for other robots used for the examples)\
+In the corresponding launch file (`gym-gazebo/gym-gazebo/envs/assets/launch`) change `<arg name="urdf_file"  default="$(env MY_URDF_PATH)"/>`\
 
 
 ##### 3.5 Access internal sensor data
@@ -137,24 +140,28 @@ In `$ROS_ROOT/config/rosconsole.config` set verbose to `DEBUG`,`INFO`,`WARN`,`ER
 ___
 ### 4. Helpful Paths
 
-- examples:\
-  `gym-gazebo/examples`
-- environments:\
-  `gym-gazebo/gym-gazebo/envs`
-- worlds:\
-  `gym-gazebo/gym-gazebo/envs/assets/worlds`
-- robots (turtlebot):\
-  `catkin_ws/src/turtlebot/turtlebot_description/robots`
-- bash setups:\
-  `gym-gazebo/gym-gazebo/envs/installation`
+- main script:\
+  `gym-gazebo/examples/rover`
+- environment definition:\
+  `gym-gazebo/gym-gazebo/envs/rover`
 - launch files:\
   `gym-gazebo/gym-gazebo/envs/assets/launch`
+- mars world:\
+  `catkin_ws/src/rover/rover_description/worlds`
+- urdf model:\
+  `catkin_ws/src/rover/rover_description/urdf`
+<br/><br/>
+- other examples:\
+  `gym-gazebo/examples`
+- other environments:\
+  `gym-gazebo/gym-gazebo/envs`
+- other worlds:\
+  `gym-gazebo/gym-gazebo/envs/assets/worlds`
+- other robots (turtlebot, ...):\
+  `catkin_ws/src/turtlebot/turtlebot_description/robots`
+- bash setups for running examples:\
+  `gym-gazebo/gym-gazebo/envs/installation`
 
-
-- urdf launch:\
-  `catkin_ws/src/turtlebot_simulator/turtlebot_gazebo/launch/includes`
-- world launch:\
-  `catkin_ws/src/gazebo_ros_pkgs/gazebo_ros/launch`
 
 ___
 ### 5. Notes
