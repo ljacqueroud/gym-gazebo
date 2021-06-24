@@ -49,4 +49,4 @@ terrain/
 Theano/
 
 # Training plots
-plots/
+plots/*
